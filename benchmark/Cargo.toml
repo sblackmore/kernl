@@ -1,0 +1,8 @@
+[package]
+name = "kernl-bench"
+version = "0.1.0"
+edition = "2024"
+description = "LLM token benchmark: kernl vs Python vs Rust"
+license = "MIT"
+
+[dependencies]

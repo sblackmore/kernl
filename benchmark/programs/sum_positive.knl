@@ -1,0 +1,5 @@
+fn sum_positive
+  in nums: [int]
+  out result: int
+  inv gte result 0
+  do filter nums gt 0 | reduce add

@@ -1,0 +1,71 @@
+# Self-hosted kernl tokenizer
+# Demonstrates the language can describe its own lexical analysis
+
+struct Token
+  kind: int
+  value: str
+  line: int
+end
+
+fn is_whitespace
+  in ch: int
+  out result: bool
+  do if eq ch 32
+    true
+  elif eq ch 10
+    true
+  else
+    false
+  end
+
+fn is_digit
+  in ch: int
+  out result: bool
+  inv gte ch 48
+  inv lte ch 57
+  do if gte ch 48
+    lte ch 57
+  else
+    false
+  end
+
+fn is_alpha
+  in ch: int
+  out result: bool
+  do if lte ch 64
+    false
+  elif lte ch 90
+    true
+  elif lte ch 96
+    false
+  elif lte ch 122
+    true
+  else
+    false
+  end
+
+fn is_keyword
+  in word: str
+  out result: bool
+  do if eq word "fn"
+    true
+  elif eq word "in"
+    true
+  elif eq word "out"
+    true
+  elif eq word "do"
+    true
+  elif eq word "end"
+    true
+  else
+    false
+  end
+
+fn classify_token
+  in word: str
+  out result: int
+  do if is_keyword word
+    1
+  else
+    2
+  end

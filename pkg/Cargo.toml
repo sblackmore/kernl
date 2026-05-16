@@ -1,0 +1,14 @@
+[package]
+name = "kernl-pkg"
+version = "0.1.0"
+edition = "2024"
+description = "Package manager for the kernl programming language"
+license = "MIT"
+
+[[bin]]
+name = "kernl"
+path = "src/main.rs"
+
+[dependencies]
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }

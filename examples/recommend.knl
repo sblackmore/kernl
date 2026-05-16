@@ -1,0 +1,7 @@
+# Fluid-mode recommendation function
+fn recommend
+  mode fluid
+  in  user: User context: Context
+  intent "surface items user would engage with"
+  confidence 0.85
+  fallback popular_items context

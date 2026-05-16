@@ -1,0 +1,16 @@
+[package]
+name = "kernl-resolver"
+version = "0.1.0"
+edition = "2024"
+description = "Fluid mode resolver daemon for kernl"
+license = "MIT"
+
+[[bin]]
+name = "kernl-resolver"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+ureq = { version = "3", features = ["json"] }

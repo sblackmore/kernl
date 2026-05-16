@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Rust
+/compiler/target/
+**/*.rs.bk
+*.pdb
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Environment
+.env
+.env.*

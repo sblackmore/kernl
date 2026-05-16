@@ -1,0 +1,6 @@
+fn clamp
+  in val: int lo: int hi: int
+  out result: int
+  inv gte result lo
+  inv lte result hi
+  do max lo min hi val

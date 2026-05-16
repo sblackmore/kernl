@@ -1,0 +1,60 @@
+{
+  "name": "kernl",
+  "displayName": "kernl",
+  "description": "Language support for kernl — the AI-native programming language",
+  "version": "0.1.0",
+  "publisher": "kernl-lang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kernl-lang/kernl"
+  },
+  "categories": ["Programming Languages"],
+  "keywords": ["kernl", "ai", "llm", "programming language"],
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "activationEvents": [
+    "onLanguage:kernl"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [{
+      "id": "kernl",
+      "aliases": ["kernl", "Kernl"],
+      "extensions": [".knl"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "kernl",
+      "scopeName": "source.kernl",
+      "path": "./syntaxes/kernl.tmLanguage.json"
+    }],
+    "configuration": {
+      "title": "kernl",
+      "properties": {
+        "kernl.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to kernl-lsp binary. If empty, searches PATH."
+        },
+        "kernl.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Traces communication between VS Code and the kernl language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0"
+  }
+}

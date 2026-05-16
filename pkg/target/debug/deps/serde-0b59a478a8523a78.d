@@ -1,0 +1,14 @@
+/Users/kaylenhoman/workspace/kernl/pkg/target/debug/deps/serde-0b59a478a8523a78.d: /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/kaylenhoman/workspace/kernl/pkg/target/debug/build/serde-f7820387e22cc7ff/out/private.rs
+
+/Users/kaylenhoman/workspace/kernl/pkg/target/debug/deps/libserde-0b59a478a8523a78.rlib: /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/kaylenhoman/workspace/kernl/pkg/target/debug/build/serde-f7820387e22cc7ff/out/private.rs
+
+/Users/kaylenhoman/workspace/kernl/pkg/target/debug/deps/libserde-0b59a478a8523a78.rmeta: /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/kaylenhoman/workspace/kernl/pkg/target/debug/build/serde-f7820387e22cc7ff/out/private.rs
+
+/Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/kaylenhoman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/kaylenhoman/workspace/kernl/pkg/target/debug/build/serde-f7820387e22cc7ff/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/kaylenhoman/workspace/kernl/pkg/target/debug/build/serde-f7820387e22cc7ff/out

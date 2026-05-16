@@ -1,0 +1,11 @@
+struct Account
+  id: uint
+  balance: int
+  owner: str
+end
+
+fn transfer
+  in amount: uint from: Account to: Account
+  inv gte from.balance amount
+  guarantee atomic
+  do debit from amount | credit to amount

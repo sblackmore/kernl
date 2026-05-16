@@ -1,0 +1,4 @@
+fn add_one
+  in x: int
+  out result: int
+  do add x 1

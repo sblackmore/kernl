@@ -1,0 +1,42 @@
+# Self-hosted kernl formatter
+# Demonstrates text processing in kernl
+
+fn indent_level
+  in line: str
+  out result: int
+  do 0
+
+fn should_indent
+  in word: str
+  out result: bool
+  do if eq word "fn"
+    true
+  elif eq word "if"
+    true
+  elif eq word "each"
+    true
+  elif eq word "while"
+    true
+  elif eq word "struct"
+    true
+  else
+    false
+  end
+
+fn should_dedent
+  in word: str
+  out result: bool
+  do if eq word "end"
+    true
+  elif eq word "else"
+    true
+  elif eq word "elif"
+    true
+  else
+    false
+  end
+
+fn format_line
+  in line: str indent: int
+  out result: str
+  do concat repeat " " mul indent 2 line

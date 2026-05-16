@@ -1,0 +1,46 @@
+# Self-hosted expression evaluator
+# Evaluates simple arithmetic in kernl's own notation
+
+fn eval_op
+  in op: int a: int b: int
+  out result: int
+  do if eq op 0
+    add a b
+  elif eq op 1
+    sub a b
+  elif eq op 2
+    mul a b
+  elif eq op 3
+    div a b
+  else
+    0
+  end
+
+fn eval_unary
+  in op: int x: int
+  out result: int
+  do if eq op 4
+    sub 0 x
+  else
+    x
+  end
+
+fn factorial
+  in n: int
+  out result: int
+  inv gte n 0
+  do if lte n 1
+    1
+  else
+    mul n factorial sub n 1
+  end
+
+fn fibonacci
+  in n: int
+  out result: int
+  inv gte n 0
+  do if lte n 1
+    n
+  else
+    add fibonacci sub n 1 fibonacci sub n 2
+  end
