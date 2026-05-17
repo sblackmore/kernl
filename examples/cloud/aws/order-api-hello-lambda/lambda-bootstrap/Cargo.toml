@@ -1,0 +1,16 @@
+[package]
+name = "lambda-bootstrap"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "bootstrap"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22"
+lambda_runtime = "0.13"
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

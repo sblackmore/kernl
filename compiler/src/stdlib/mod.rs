@@ -128,6 +128,81 @@ const CONCAT: Builtin = Builtin {
     description: "String concatenation",
 };
 
+const SPLIT: Builtin = Builtin {
+    name: "split",
+    params: &[
+        BuiltinParam { name: "text", ty: "str" },
+        BuiltinParam { name: "sep", ty: "str" },
+    ],
+    return_ty: "[str]",
+    description: "Split string by separator into string parts",
+};
+
+const HEAD: Builtin = Builtin {
+    name: "head",
+    params: &[BuiltinParam { name: "list", ty: "[T]" }],
+    return_ty: "T",
+    description: "First element of a list (empty string if empty)",
+};
+
+const TAIL: Builtin = Builtin {
+    name: "tail",
+    params: &[BuiltinParam { name: "list", ty: "[T]" }],
+    return_ty: "[T]",
+    description: "All but the first element",
+};
+
+const CONS: Builtin = Builtin {
+    name: "cons",
+    params: &[
+        BuiltinParam { name: "elem", ty: "T" },
+        BuiltinParam { name: "list", ty: "[T]" },
+    ],
+    return_ty: "[T]",
+    description: "Prepend an element to a list",
+};
+
+const JOIN: Builtin = Builtin {
+    name: "join",
+    params: &[
+        BuiltinParam { name: "parts", ty: "[str]" },
+        BuiltinParam { name: "sep", ty: "str" },
+    ],
+    return_ty: "str",
+    description: "Join string list with a separator",
+};
+
+const PARSE_INT: Builtin = Builtin {
+    name: "parse_int",
+    params: &[BuiltinParam { name: "text", ty: "str" }],
+    return_ty: "int",
+    description: "Parse integer from string (0 on failure)",
+};
+
+const SUB_INT: Builtin = Builtin {
+    name: "sub",
+    params: &[
+        BuiltinParam { name: "a", ty: "int" },
+        BuiltinParam { name: "b", ty: "int" },
+    ],
+    return_ty: "int",
+    description: "Subtract integers (a - b)",
+};
+
+const NOOP: Builtin = Builtin {
+    name: "noop",
+    params: &[BuiltinParam { name: "x", ty: "T" }],
+    return_ty: "void",
+    description: "Ignore argument and return void (sequencing helper)",
+};
+
+const SHOW: Builtin = Builtin {
+    name: "show",
+    params: &[BuiltinParam { name: "value", ty: "T" }],
+    return_ty: "str",
+    description: "Convert any value to its string form",
+};
+
 const RANGE: Builtin = Builtin {
     name: "range",
     params: &[
@@ -143,7 +218,7 @@ static BUILTINS: &[Builtin] = &[
     MAX_INT, MAX_FLOAT,
     MIN_INT, MIN_FLOAT,
     LEN, PRINT, ABS, SQRT,
-    CONCAT, RANGE,
+    CONCAT, SPLIT, HEAD, TAIL, CONS, JOIN, PARSE_INT, SUB_INT, SHOW, NOOP, RANGE,
 ];
 
 /// All built-in function definitions (includes overload variants).
@@ -178,8 +253,9 @@ mod tests {
     #[test]
     fn all_builtins_registered() {
         let expected = [
-            "abs", "concat", "filter", "len", "map", "max",
-            "min", "print", "range", "reduce", "sqrt",
+            "abs", "concat", "cons", "filter", "head", "join", "len", "map", "max",
+            "min", "noop", "parse_int", "print", "range", "reduce", "show", "split",
+            "sqrt", "sub", "tail",
         ];
         let names = builtin_names();
         for name in &expected {

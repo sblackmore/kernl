@@ -240,3 +240,9 @@ Prints the full parsed AST structure — useful for debugging or understanding h
 7. Run `kernlc your_file.knl --target debug` to verify parsing
 
 When in doubt, use **pipes** for composition and **named operators** for all arithmetic and comparison. Keep structures flat — avoid deeply nested expressions.
+
+---
+
+## Cloud deployment examples
+
+For minimal **HTTP APIs on AWS Lambda** (and placeholders for other providers), see [`examples/cloud/README.md`](../examples/cloud/README.md).

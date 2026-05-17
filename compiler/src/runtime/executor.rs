@@ -397,6 +397,7 @@ impl Executor {
                 }
                 Ok(Value::Void)
             }
+            "noop" => Ok(Value::Void),
             "len" => match args.first() {
                 Some(Value::List(l)) => Ok(Value::Int(l.len() as i64)),
                 Some(Value::Str(s)) => Ok(Value::Int(s.len() as i64)),
@@ -409,6 +410,10 @@ impl Executor {
             },
             "max" => match (args.first(), args.get(1)) {
                 (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(*a.max(b))),
+                _ => Ok(Value::Int(0)),
+            },
+            "sub" => match (args.first(), args.get(1)) {
+                (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(*a - *b)),
                 _ => Ok(Value::Int(0)),
             },
             "min" => match (args.first(), args.get(1)) {
@@ -425,6 +430,65 @@ impl Executor {
                 Some(Value::Float(n)) => Ok(Value::Float(n.sqrt())),
                 Some(Value::Int(n)) => Ok(Value::Float((*n as f64).sqrt())),
                 _ => Ok(Value::Float(0.0)),
+            },
+            "concat" => match (args.first(), args.get(1)) {
+                (Some(Value::Str(a)), Some(Value::Str(b))) => {
+                    Ok(Value::Str(format!("{a}{b}")))
+                }
+                _ => Ok(Value::Str(String::new())),
+            },
+            "split" => match (args.first(), args.get(1)) {
+                (Some(Value::Str(s)), Some(Value::Str(sep))) => {
+                    if sep.is_empty() {
+                        return Ok(Value::List(vec![Value::Str(s.clone())]));
+                    }
+                    let parts: Vec<Value> = s
+                        .split(sep.as_str())
+                        .map(|p| Value::Str(p.to_string()))
+                        .collect();
+                    Ok(Value::List(parts))
+                }
+                _ => Ok(Value::List(vec![])),
+            },
+            "head" => match args.first() {
+                Some(Value::List(l)) if !l.is_empty() => Ok(l[0].clone()),
+                _ => Ok(Value::Str(String::new())),
+            },
+            "tail" => match args.first() {
+                Some(Value::List(l)) if !l.is_empty() => {
+                    Ok(Value::List(l[1..].to_vec()))
+                }
+                _ => Ok(Value::List(vec![])),
+            },
+            "cons" => match (args.first(), args.get(1)) {
+                (Some(h), Some(Value::List(t))) => {
+                    let mut v = vec![h.clone()];
+                    v.extend_from_slice(t);
+                    Ok(Value::List(v))
+                }
+                _ => Ok(Value::List(vec![])),
+            },
+            "join" => match (args.first(), args.get(1)) {
+                (Some(Value::List(parts)), Some(Value::Str(sep))) => {
+                    let strings: Vec<String> = parts
+                        .iter()
+                        .filter_map(|v| match v {
+                            Value::Str(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect();
+                    Ok(Value::Str(strings.join(sep)))
+                }
+                _ => Ok(Value::Str(String::new())),
+            },
+            "parse_int" => match args.first() {
+                Some(Value::Str(s)) => Ok(Value::Int(s.trim().parse::<i64>().unwrap_or(0))),
+                Some(Value::Int(n)) => Ok(Value::Int(*n)),
+                _ => Ok(Value::Int(0)),
+            },
+            "show" => match args.first() {
+                Some(v) => Ok(Value::Str(v.to_string())),
+                None => Ok(Value::Str(String::new())),
             },
             _ => self.call(name, args),
         }

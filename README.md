@@ -10,7 +10,7 @@ This is the main source code repository for kernl. It contains the compiler (`ke
 
 ## Why kernl?
 
-Every programming language in existence was designed for human brains. Python optimizes for readability. Rust optimizes for safety. C optimizes for hardware control. **None of them optimize for LLM generation** — and now that's the bottleneck.
+Programming languages are designed for humans. Python optimizes for readability. Rust optimizes for safety. C optimizes for hardware control. **None of them optimize for LLM generation** — and now that's the bottleneck.
 
 When an AI agent writes code, it generates tokens. Every unnecessary token is:
 - **Cost** — you pay per token
@@ -192,7 +192,7 @@ kernl/
 ├── editors/vscode/    VS Code extension
 ├── self-host/         kernl programs implementing parts of the compiler
 ├── benchmark/         LLM token benchmark suite vs Python/Rust
-├── examples/          .knl example programs
+├── examples/          .knl samples; see examples/cloud for AWS/GCP/Azure deploy examples
 └── docs/              guides and documentation
 ```
 

@@ -1,0 +1,311 @@
+# Demo ordering HTTP API — stdin protocol (Lambda: `kernlc --invoke-stdin --run`).
+# Line 1: operation key. Line 2: payload (route-specific). Line 3+: tab-separated order rows (id, customerId, totalCents, status).
+# Stdout line 1: HTTP status (200 / 404). Line 2: JSON body (plain JSON text). Line 3: __KEEP_STATE__ or __STATE__; if __STATE__, following lines replace the bootstrap store (0+ TSV rows).
+# Parser note: `do` allows one expression — use `if true … end` for multi-step bodies. Use `|` pipes (no call parentheses).
+
+fn op_line
+  in stdin: str
+  do if true
+       let p = stdin | split "\n"
+       head p
+     end
+
+fn payload_line
+  in stdin: str
+  do if true
+       let p = stdin | split "\n"
+       let q = tail p
+       head q
+     end
+
+fn state_lines
+  in stdin: str
+  do if true
+       let p = stdin | split "\n"
+       let q = tail p
+       tail q
+     end
+
+fn row_id
+  in row: str
+  do if true
+       let p = row | split "\t"
+       head p
+     end
+
+fn list_nth
+  in xs: [str] ix: int
+  do if eq ix 0
+       head xs
+     else
+       let nm = sub ix 1
+       tail xs | list_nth nm
+     end
+
+fn row_json
+  in row: str
+  do if true
+       let parts = row | split "\t"
+       let f0 = parts | list_nth 0
+       let f1 = parts | list_nth 1
+       let s2 = parts | list_nth 2
+       let pi = parse_int s2
+       let f2 = show pi
+       let f3 = parts | list_nth 3
+       let p1 = concat "{\"id\":\"" f0
+       let p2 = concat p1 "\",\"customerId\":\""
+       let p3 = concat p2 f1
+       let p4 = concat p3 "\",\"totalCents\":"
+       let p5 = concat p4 f2
+       let p6 = concat p5 ",\"status\":\""
+       let p7 = concat p6 f3
+       concat p7 "\"}"
+     end
+
+fn join_orders_json
+  in rows: [str]
+  do if true
+       let n = len rows
+       if eq n 0
+         ""
+       else
+         if true
+           let h = head rows
+           let t = tail rows
+           if eq h ""
+             join_orders_json t
+           else
+             let rest = join_orders_json t
+             if eq rest ""
+               row_json h
+             else
+               let piece = row_json h
+               let sep = concat piece ","
+               concat sep rest
+             end
+           end
+         end
+       end
+     end
+
+fn snoc
+  in xs: [str] line: str
+  do if true
+       let n = len xs
+       if eq n 0
+         if true
+           let z = "" | split "\t"
+           let blank = tail z
+           line | cons blank
+         end
+       else
+         if true
+           let rest = tail xs | snoc line
+           head xs | cons rest
+         end
+       end
+     end
+
+fn filter_not_id
+  in rows: [str] id: str
+  do if true
+       let n = len rows
+       if eq n 0
+         if true
+           let z = "" | split "\t"
+           tail z
+         end
+       else
+         if true
+           let hrow = head rows
+           let cur = row_id hrow
+           if eq cur id
+             tail rows | filter_not_id id
+           else
+             let rest = tail rows | filter_not_id id
+             head rows | cons rest
+           end
+         end
+       end
+     end
+
+fn find_row
+  in rows: [str] id: str
+  do if true
+       let n = len rows
+       if eq n 0
+         ""
+       else
+         if true
+           let hrow = head rows
+           let cur = row_id hrow
+           if eq cur id
+             head rows
+           else
+             tail rows | find_row id
+           end
+         end
+       end
+     end
+
+fn replace_row
+  in rows: [str] id: str new_row: str
+  do if true
+       let n = len rows
+       if eq n 0
+         rows
+       else
+         if true
+           let hrow = head rows
+           let cur = row_id hrow
+           if eq cur id
+             if true
+               let tail_rows = tail rows
+               new_row | cons tail_rows
+             end
+           else
+             let rest = tail rows | replace_row id new_row
+             head rows | cons rest
+           end
+         end
+       end
+     end
+
+fn print_state_rows
+  in rows: [str]
+  do if true
+       let n = len rows
+       if eq n 0
+         noop 0
+       else
+         if true
+           let h = head rows
+           let t = tail rows
+           if eq h ""
+             print_state_rows t
+           else
+             if true
+               print h
+               print_state_rows t
+             end
+           end
+         end
+       end
+     end
+
+fn emit_keep
+  in status: str body: str
+  do if true
+       print status
+       print body
+       print "__KEEP_STATE__"
+     end
+
+fn emit_with_state
+  in status: str body: str rows: [str]
+  do if true
+       print status
+       print body
+       print "__STATE__"
+       print_state_rows rows
+     end
+
+fn handle_missing_order
+  in unused: str
+  do emit_keep "404" "{\"error\":\"not_found\",\"detail\":\"order id not found\"}"
+
+fn handle_health
+  in unused: str
+  do emit_keep "200" "{\"status\":\"ok\",\"service\":\"kernl-order-demo\",\"version\":\"0.2-demo\"}"
+
+fn handle_customers
+  in unused: str
+  do emit_keep "200" "{\"customers\":[{\"id\":\"cust-42\",\"name\":\"Ada Lovelace\",\"tier\":\"enterprise\"},{\"id\":\"cust-77\",\"name\":\"Alan Turing\",\"tier\":\"standard\"}]}"
+
+fn handle_list
+  in stdin: str
+  do if true
+       let rows = state_lines stdin
+       let mid = join_orders_json rows
+       let inner = concat "{\"orders\":[" mid
+       let inner2 = concat inner "]}"
+       emit_keep "200" inner2
+     end
+
+fn handle_get
+  in stdin: str
+  do if true
+       let rows = state_lines stdin
+       let id = payload_line stdin
+       let hit = find_row rows id
+       if eq hit ""
+         handle_missing_order stdin
+       else
+         let j = row_json hit
+         let body = concat "{\"order\":" j
+         let body2 = concat body "}"
+         emit_keep "200" body2
+       end
+     end
+
+fn handle_add
+  in stdin: str
+  do if true
+       let rows = state_lines stdin
+       let line = payload_line stdin
+       let next = snoc rows line
+       let j = row_json line
+       let body = concat "{\"order\":" j
+       let body2 = concat body "}"
+       emit_with_state "200" body2 next
+     end
+
+fn handle_delete
+  in stdin: str
+  do if true
+       let rows = state_lines stdin
+       let id = payload_line stdin
+       let next = filter_not_id rows id
+       let ln = len next
+       let lr = len rows
+       if eq ln lr
+         handle_missing_order stdin
+       else
+         emit_with_state "200" "{\"deleted\":true}" next
+       end
+     end
+
+fn handle_update
+  in stdin: str
+  do if true
+       let rows = state_lines stdin
+       let new_row = payload_line stdin
+       let id = row_id new_row
+       let existing = find_row rows id
+       if eq existing ""
+         handle_missing_order stdin
+       else
+         let next = replace_row rows id new_row
+         let j = row_json new_row
+         let body = concat "{\"order\":" j
+         let body2 = concat body "}"
+         emit_with_state "200" body2 next
+       end
+     end
+
+fn handle_unknown
+  in stdin: str
+  do emit_keep "404" "{\"error\":\"not_found\",\"detail\":\"unsupported route\"}"
+
+fn main
+  in stdin: str
+  do match op_line stdin
+       "health" => handle_health stdin
+       "customers.list" => handle_customers stdin
+       "orders.list" => handle_list stdin
+       "orders.get" => handle_get stdin
+       "orders.add" => handle_add stdin
+       "orders.delete" => handle_delete stdin
+       "orders.update" => handle_update stdin
+       _ => handle_unknown stdin
+     end

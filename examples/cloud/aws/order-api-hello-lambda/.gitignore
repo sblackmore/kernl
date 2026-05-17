@@ -1,0 +1,14 @@
+# Lambda bundle (built locally)
+dist/
+function.zip
+
+# Rust build artifacts
+lambda-bootstrap/target/
+
+# CDK
+cdk/node_modules/
+cdk/cdk.out/
+cdk/dist/
+
+# SAM (legacy)
+.aws-sam/

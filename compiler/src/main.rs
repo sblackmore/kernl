@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -11,6 +12,7 @@ use kernlc::driver::{Driver, DriverConfig, OptLevel};
 use kernlc::driver::targets::CompileTarget;
 use kernlc::lexer::Lexer;
 use kernlc::parser::Parser;
+use kernlc::parser::ast::{Item, Param, Program, Type};
 use kernlc::profiler::{instrument::instrument_llvm_ir, Profiler};
 use kernlc::runtime::executor::{Executor, Value};
 use kernlc::runtime::ResolverConfig;
@@ -65,6 +67,7 @@ fn main() {
         eprintln!("modes:");
         eprintln!("  --repl                      launch interactive REPL");
         eprintln!("  --run                       interpret the program via executor");
+        eprintln!("  --invoke-stdin              with --run: read stdin into main's single `str` parameter");
         eprintln!("  --profile                   print profiling report after execution (with --run)");
         eprintln!("  --debug                     enable interactive debugger (with --run)");
         eprintln!();
@@ -595,7 +598,10 @@ fn run_program(source: &str, args: &[String]) {
         }
     }
 
-    match executor.call(entry, vec![]) {
+    let do_invoke_stdin = args.iter().any(|a| a == "--invoke-stdin");
+    let main_args = main_call_args(&program, do_invoke_stdin);
+
+    match executor.call(entry, main_args) {
         Ok(result) => {
             if !matches!(result, Value::Void) {
                 println!("{result}");
@@ -646,4 +652,33 @@ fn executor_has_function(program: &kernlc::parser::ast::Program, name: &str) -> 
     program.items.iter().any(|item| {
         matches!(item, kernlc::parser::ast::Item::Function(f) if f.name == name)
     })
+}
+
+fn param_is_str(p: &Param) -> bool {
+    matches!(&p.ty, Type::Named(n) if n == "str")
+}
+
+/// When `main` declares exactly one `str` parameter, bind it from stdin if `--invoke-stdin`,
+/// otherwise use an empty string (local `kernlc … --run` smoke tests).
+fn main_call_args(program: &Program, do_invoke_stdin: bool) -> Vec<Value> {
+    let Some(main_fn) = program.items.iter().find_map(|item| {
+        if let Item::Function(f) = item {
+            (f.name == "main").then_some(f)
+        } else {
+            None
+        }
+    }) else {
+        return vec![];
+    };
+    if main_fn.params.len() != 1 || !param_is_str(&main_fn.params[0]) {
+        return vec![];
+    }
+    let payload = if do_invoke_stdin {
+        let mut buf = String::new();
+        let _ = std::io::stdin().read_to_string(&mut buf);
+        buf.trim().to_string()
+    } else {
+        String::new()
+    };
+    vec![Value::Str(payload)]
 }

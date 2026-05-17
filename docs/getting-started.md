@@ -240,6 +240,7 @@ In 12 lines, with zero syntactic noise.
 
 ## Next steps
 
+- **Agents / AI assistants:** [docs/agents/README.md](agents/README.md) — parser quirks, pipes, builtins vs executor, checklists
 - **Full specification:** [spec/LANGUAGE.md](../spec/LANGUAGE.md) — every keyword, type, and operator
 - **Annotated examples:** [docs/examples.md](examples.md) — real programs with explanations
 - **Compiler architecture:** [docs/architecture.md](architecture.md) — how the compiler works internally
