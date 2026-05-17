@@ -31,9 +31,10 @@ impl Parser {
         match self.peek() {
             Token::Fn => self.parse_function().map(Item::Function),
             Token::Struct => self.parse_struct().map(Item::Struct),
+            Token::Enum => self.parse_enum().map(Item::Enum),
             Token::Mod => self.parse_module().map(Item::Module),
             Token::Use => self.parse_use().map(Item::Use),
-            other => Err(self.error(format!("expected item (fn, struct, mod, use), got {other:?}"))),
+            other => Err(self.error(format!("expected item (fn, struct, enum, mod, use), got {other:?}"))),
         }
     }
 
@@ -88,6 +89,7 @@ impl Parser {
                     mode = match m.as_str() {
                         "strict" => FnMode::Strict,
                         "fluid" => FnMode::Fluid,
+                        "async" => FnMode::Async,
                         _ => return Err(self.error(format!("unknown mode: {m}"))),
                     };
                 }
@@ -205,6 +207,28 @@ impl Parser {
             Token::If => self.parse_if(),
             Token::Each => self.parse_each(),
             Token::While => self.parse_while(),
+            Token::Match => self.parse_match(),
+            Token::Spawn => {
+                self.advance();
+                let expr = self.parse_expr()?;
+                Ok(Expr::Spawn(Box::new(expr)))
+            }
+            Token::AwaitKw => {
+                self.advance();
+                let expr = self.parse_expr()?;
+                Ok(Expr::Await(Box::new(expr)))
+            }
+            Token::Send => {
+                self.advance();
+                let chan = self.parse_atom()?;
+                let val = self.parse_expr()?;
+                Ok(Expr::Send(Box::new(chan), Box::new(val)))
+            }
+            Token::Recv => {
+                self.advance();
+                let chan = self.parse_expr()?;
+                Ok(Expr::Recv(Box::new(chan)))
+            }
             Token::Add | Token::Sub | Token::Mul | Token::Div | Token::Modulo |
             Token::Eq | Token::Neq | Token::Gt | Token::Lt | Token::Gte |
             Token::Lte | Token::And | Token::Or | Token::Not => {
@@ -470,6 +494,123 @@ impl Parser {
         Ok(StructDef { name, fields })
     }
 
+    fn parse_enum(&mut self) -> Result<EnumDef, ParseError> {
+        self.expect(Token::Enum)?;
+        let name = self.expect_ident()?;
+        self.skip_newlines();
+
+        let mut variants = Vec::new();
+        while self.peek() != Token::End && !self.at_eof() {
+            self.skip_newlines();
+            if self.peek() == Token::End {
+                break;
+            }
+            let variant_name = self.expect_ident()?;
+            let mut fields = Vec::new();
+            while self.peek_is_ident() && !self.is_at_newline_or_end() {
+                fields.push(self.parse_type()?);
+            }
+            variants.push(Variant { name: variant_name, fields });
+            self.skip_newlines();
+        }
+        self.expect(Token::End)?;
+
+        Ok(EnumDef { name, variants })
+    }
+
+    fn parse_match(&mut self) -> Result<Expr, ParseError> {
+        self.expect(Token::Match)?;
+        let scrutinee = self.parse_expr()?;
+        self.skip_newlines();
+
+        let mut arms = Vec::new();
+        while !matches!(self.peek(), Token::End | Token::Eof) {
+            self.skip_newlines();
+            if matches!(self.peek(), Token::End | Token::Eof) {
+                break;
+            }
+            let pattern = self.parse_pattern()?;
+            self.expect(Token::Arrow)?;
+            let mut body = Vec::new();
+            while !self.is_at_newline_or_end() && !matches!(self.peek(), Token::End | Token::Eof) {
+                body.push(self.parse_expr()?);
+            }
+            if body.is_empty() {
+                body.push(Expr::Block(vec![]));
+            }
+            arms.push(MatchArm { pattern, body });
+            self.skip_newlines();
+        }
+        self.expect(Token::End)?;
+
+        Ok(Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms,
+        })
+    }
+
+    fn parse_pattern(&mut self) -> Result<Pattern, ParseError> {
+        match self.peek() {
+            Token::Underscore => {
+                self.advance();
+                Ok(Pattern::Wildcard)
+            }
+            Token::IntLit(_) => {
+                let expr = self.parse_atom()?;
+                Ok(Pattern::Literal(expr))
+            }
+            Token::FloatLit(_) => {
+                let expr = self.parse_atom()?;
+                Ok(Pattern::Literal(expr))
+            }
+            Token::StrLit(_) => {
+                let expr = self.parse_atom()?;
+                Ok(Pattern::Literal(expr))
+            }
+            Token::True | Token::False => {
+                let expr = self.parse_atom()?;
+                Ok(Pattern::Literal(expr))
+            }
+            Token::LParen => {
+                self.advance();
+                let mut pats = vec![self.parse_pattern()?];
+                while self.peek() == Token::Comma {
+                    self.advance();
+                    pats.push(self.parse_pattern()?);
+                }
+                self.expect(Token::RParen)?;
+                Ok(Pattern::Tuple(pats))
+            }
+            Token::Ident(_) => {
+                let name = self.expect_ident()?;
+                if name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    let mut sub_patterns = Vec::new();
+                    while self.is_pattern_arg_start() {
+                        sub_patterns.push(self.parse_pattern()?);
+                    }
+                    Ok(Pattern::Variant(name, sub_patterns))
+                } else {
+                    Ok(Pattern::Binding(name))
+                }
+            }
+            other => Err(self.error(format!("expected pattern, got {other:?}"))),
+        }
+    }
+
+    fn is_pattern_arg_start(&self) -> bool {
+        matches!(self.peek(),
+            Token::Ident(_) | Token::Underscore | Token::IntLit(_) |
+            Token::FloatLit(_) | Token::StrLit(_) | Token::True |
+            Token::False | Token::LParen
+        ) && !matches!(self.peek(), Token::Arrow)
+    }
+
+    fn is_at_newline_or_end(&self) -> bool {
+        matches!(self.peek(), Token::Newline | Token::End | Token::Eof)
+            || self.pos < self.tokens.len()
+                && matches!(self.tokens[self.pos].token, Token::Newline)
+    }
+
     fn parse_module(&mut self) -> Result<ModuleDecl, ParseError> {
         self.expect(Token::Mod)?;
         let name = self.expect_ident()?;
@@ -587,7 +728,8 @@ impl Parser {
     #[allow(dead_code)]
     fn is_expr_start(&self) -> bool {
         self.is_arg_start() || matches!(self.peek(),
-            Token::Let | Token::Mut | Token::If | Token::Each | Token::While
+            Token::Let | Token::Mut | Token::If | Token::Each | Token::While |
+            Token::Match | Token::Spawn | Token::AwaitKw | Token::Send | Token::Recv
         )
     }
 
@@ -749,6 +891,64 @@ mod tests {
                 assert!(f.invariants.is_empty());
             }
             _ => panic!("expected function"),
+        }
+    }
+
+    #[test]
+    fn parse_enum_definition() {
+        let prog = parse("enum Option\n  Some int\n  None\nend");
+        assert_eq!(prog.items.len(), 1);
+        match &prog.items[0] {
+            Item::Enum(e) => {
+                assert_eq!(e.name, "Option");
+                assert_eq!(e.variants.len(), 2);
+                assert_eq!(e.variants[0].name, "Some");
+                assert_eq!(e.variants[0].fields.len(), 1);
+                assert_eq!(e.variants[1].name, "None");
+                assert!(e.variants[1].fields.is_empty());
+            }
+            _ => panic!("expected enum"),
+        }
+    }
+
+    #[test]
+    fn parse_match_expression() {
+        let prog = parse("fn test\n  in x: int\n  do match x\n    0 => 1\n    _ => 2\n  end");
+        match &prog.items[0] {
+            Item::Function(f) => {
+                assert!(matches!(f.body, Expr::Match { .. }));
+                if let Expr::Match { ref arms, .. } = f.body {
+                    assert_eq!(arms.len(), 2);
+                    assert!(matches!(arms[0].pattern, Pattern::Literal(_)));
+                    assert!(matches!(arms[1].pattern, Pattern::Wildcard));
+                }
+            }
+            _ => panic!("expected function"),
+        }
+    }
+
+    #[test]
+    fn parse_spawn_await() {
+        let prog = parse("fn test\n  do await spawn add 1 2");
+        match &prog.items[0] {
+            Item::Function(f) => {
+                assert!(matches!(f.body, Expr::Await(_)));
+            }
+            _ => panic!("expected function"),
+        }
+    }
+
+    #[test]
+    fn parse_option_like_type() {
+        let prog = parse("enum Result\n  Ok int\n  Err str\nend");
+        match &prog.items[0] {
+            Item::Enum(e) => {
+                assert_eq!(e.name, "Result");
+                assert_eq!(e.variants.len(), 2);
+                assert_eq!(e.variants[0].name, "Ok");
+                assert_eq!(e.variants[1].name, "Err");
+            }
+            _ => panic!("expected enum"),
         }
     }
 }

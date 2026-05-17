@@ -298,6 +298,55 @@ impl SemanticAnalyzer {
             }
 
             Expr::IntLit(_) | Expr::FloatLit(_) | Expr::StrLit(_) | Expr::BoolLit(_) => {}
+
+            Expr::EnumVariant(_, _, args) => {
+                for arg in args {
+                    self.check_expr(arg);
+                }
+            }
+
+            Expr::Match { scrutinee, arms } => {
+                self.check_expr(scrutinee);
+                for arm in arms {
+                    self.scopes.push();
+                    self.bind_pattern(&arm.pattern);
+                    for expr in &arm.body {
+                        self.check_expr(expr);
+                    }
+                    self.scopes.pop();
+                }
+            }
+
+            Expr::Spawn(inner) => self.check_expr(inner),
+            Expr::Await(inner) => self.check_expr(inner),
+            Expr::Send(chan, val) => {
+                self.check_expr(chan);
+                self.check_expr(val);
+            }
+            Expr::Recv(chan) => self.check_expr(chan),
+        }
+    }
+
+    fn bind_pattern(&mut self, pattern: &Pattern) {
+        match pattern {
+            Pattern::Wildcard | Pattern::Literal(_) => {}
+            Pattern::Binding(name) => {
+                self.scopes.define(BindingInfo {
+                    name: name.clone(),
+                    kind: BindingKind::Let,
+                    defined_at: 0,
+                });
+            }
+            Pattern::Variant(_, sub_pats) => {
+                for pat in sub_pats {
+                    self.bind_pattern(pat);
+                }
+            }
+            Pattern::Tuple(pats) => {
+                for pat in pats {
+                    self.bind_pattern(pat);
+                }
+            }
         }
     }
 }

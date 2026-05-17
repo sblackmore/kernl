@@ -35,6 +35,7 @@ impl LlvmEmitter {
             match item {
                 Item::Function(f) => emitter.emit_function(f)?,
                 Item::Struct(s) => emitter.emit_struct(s),
+                Item::Enum(e) => emitter.emit_enum(e),
                 _ => {}
             }
         }
@@ -73,6 +74,7 @@ impl LlvmEmitter {
             match item {
                 Item::Function(f) => emitter.emit_function(f)?,
                 Item::Struct(s) => emitter.emit_struct(s),
+                Item::Enum(e) => emitter.emit_enum(e),
                 _ => {}
             }
         }
@@ -120,6 +122,10 @@ impl LlvmEmitter {
                     emitter.emit_struct(s);
                     func_line += 3;
                 }
+                Item::Enum(e) => {
+                    emitter.emit_enum(e);
+                    func_line += e.variants.len() + 2;
+                }
                 _ => { func_line += 1; }
             }
         }
@@ -146,6 +152,12 @@ impl LlvmEmitter {
             .map(|f| type_to_llvm(&f.ty))
             .collect();
         self.push(&format!("%{} = type {{ {} }}", s.name, fields.join(", ")));
+        self.push("");
+    }
+
+    fn emit_enum(&mut self, e: &EnumDef) {
+        self.push(&format!("; enum {} — tagged union: {{i8, i64}}", e.name));
+        self.push(&format!("%{} = type {{ i8, i64 }}", e.name));
         self.push("");
     }
 
@@ -324,6 +336,68 @@ impl LlvmEmitter {
                 }
                 Ok(last)
             }
+
+            Expr::EnumVariant(_enum_name, _variant_name, args) => {
+                let tag_val = "0";
+                let payload = if args.is_empty() {
+                    "0".to_string()
+                } else {
+                    self.emit_expr(&args[0], func)?
+                };
+                let r1 = self.next_reg();
+                self.push(&format!("  {r1} = insertvalue {{i8, i64}} undef, i8 {tag_val}, 0"));
+                let r2 = self.next_reg();
+                self.push(&format!("  {r2} = insertvalue {{i8, i64}} {r1}, i64 {payload}, 1"));
+                Ok(r2)
+            }
+
+            Expr::Match { scrutinee, arms } => {
+                let scrut_reg = self.emit_expr(scrutinee, func)?;
+                let tag_reg = self.next_reg();
+                self.push(&format!("  {tag_reg} = extractvalue {{i8, i64}} {scrut_reg}, 0"));
+                let merge_label = format!("match_merge_{}", self.reg);
+                let mut arm_labels = Vec::new();
+                let default_label = format!("match_default_{}", self.reg);
+
+                for (i, _arm) in arms.iter().enumerate() {
+                    arm_labels.push(format!("match_arm_{}_{}", self.reg, i));
+                }
+
+                let mut switch_cases = String::new();
+                for (i, label) in arm_labels.iter().enumerate() {
+                    switch_cases.push_str(&format!(" i8 {i}, label %{label}"));
+                }
+                self.push(&format!("  switch i8 {tag_reg}, label %{default_label} [{switch_cases} ]"));
+
+                let mut phi_entries = Vec::new();
+                for (i, arm) in arms.iter().enumerate() {
+                    let label = &arm_labels[i];
+                    self.push(&format!("{label}:"));
+                    let mut last_reg = "0".to_string();
+                    for expr in &arm.body {
+                        last_reg = self.emit_expr(expr, func)?;
+                    }
+                    phi_entries.push((last_reg, label.clone()));
+                    self.push(&format!("  br label %{merge_label}"));
+                }
+
+                self.push(&format!("{default_label}:"));
+                self.push(&format!("  br label %{merge_label}"));
+                phi_entries.push(("0".to_string(), default_label));
+
+                self.push(&format!("{merge_label}:"));
+                let result = self.next_reg();
+                let phi_args: Vec<String> = phi_entries.iter()
+                    .map(|(reg, label)| format!("[{reg}, %{label}]"))
+                    .collect();
+                self.push(&format!("  {result} = phi i64 {}", phi_args.join(", ")));
+                Ok(result)
+            }
+
+            Expr::Spawn(inner) => self.emit_expr(inner, func),
+            Expr::Await(inner) => self.emit_expr(inner, func),
+            Expr::Send(_, val) => self.emit_expr(val, func),
+            Expr::Recv(_) => Ok("0".into()),
 
             _ => Ok("0".into()),
         }
@@ -534,5 +608,11 @@ mod tests {
         assert!(!ir.contains("!dbg"));
         assert!(!ir.contains("!DICompileUnit"));
         assert!(ir.contains("define i64 @add_one"));
+    }
+
+    #[test]
+    fn enum_as_tagged_union() {
+        let ir = emit("enum Option\n  Some int\n  None\nend");
+        assert!(ir.contains("%Option = type { i8, i64 }"));
     }
 }

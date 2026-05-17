@@ -58,6 +58,13 @@ impl Registry {
         }
     }
 
+    /// Base URL from `KERNL_REGISTRY_URL` or [`DEFAULT_REGISTRY`].
+    pub fn from_environment() -> Self {
+        let base_url =
+            std::env::var("KERNL_REGISTRY_URL").unwrap_or_else(|_| DEFAULT_REGISTRY.into());
+        Self { base_url }
+    }
+
     pub fn with_url(url: String) -> Self {
         Self { base_url: url }
     }

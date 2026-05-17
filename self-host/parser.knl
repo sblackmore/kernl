@@ -1,0 +1,173 @@
+# Self-hosted kernl parser
+# Parses a simplified subset of the kernl grammar
+
+struct AstNode
+  kind: int
+  value: str
+  children_count: int
+end
+
+fn node_kind_name
+  in kind: int
+  out result: str
+  do if eq kind 0
+    "program"
+  elif eq kind 1
+    "function"
+  elif eq kind 2
+    "param"
+  elif eq kind 3
+    "body"
+  elif eq kind 4
+    "literal"
+  elif eq kind 5
+    "ident"
+  elif eq kind 6
+    "op_expr"
+  elif eq kind 7
+    "call"
+  else
+    "unknown"
+  end
+
+fn is_keyword_token
+  in word: str
+  out result: bool
+  do if eq word "fn"
+    true
+  elif eq word "in"
+    true
+  elif eq word "out"
+    true
+  elif eq word "do"
+    true
+  elif eq word "end"
+    true
+  elif eq word "let"
+    true
+  elif eq word "if"
+    true
+  elif eq word "else"
+    true
+  elif eq word "struct"
+    true
+  elif eq word "while"
+    true
+  elif eq word "each"
+    true
+  else
+    false
+  end
+
+fn is_operator_token
+  in word: str
+  out result: bool
+  do if eq word "add"
+    true
+  elif eq word "sub"
+    true
+  elif eq word "mul"
+    true
+  elif eq word "div"
+    true
+  elif eq word "eq"
+    true
+  elif eq word "neq"
+    true
+  elif eq word "gt"
+    true
+  elif eq word "lt"
+    true
+  elif eq word "gte"
+    true
+  elif eq word "lte"
+    true
+  elif eq word "and"
+    true
+  elif eq word "or"
+    true
+  elif eq word "not"
+    true
+  else
+    false
+  end
+
+fn is_type_name
+  in word: str
+  out result: bool
+  do if eq word "int"
+    true
+  elif eq word "float"
+    true
+  elif eq word "bool"
+    true
+  elif eq word "str"
+    true
+  elif eq word "void"
+    true
+  else
+    false
+  end
+
+fn operator_arity
+  in op: str
+  out result: int
+  inv gte result 1
+  inv lte result 2
+  do if eq op "not"
+    1
+  else
+    2
+  end
+
+fn parse_type
+  in token: str
+  out result: int
+  req is_type_name token
+  ens gte result 0
+  do if eq token "int"
+    0
+  elif eq token "float"
+    1
+  elif eq token "bool"
+    2
+  elif eq token "str"
+    3
+  else
+    4
+  end
+
+fn validate_function_structure
+  in has_name: bool
+  in has_params: bool
+  in has_body: bool
+  out result: bool
+  req eq has_name true
+  ens eq result and has_params has_body
+  do and has_params has_body
+
+fn classify_node
+  in is_keyword: bool
+  in is_operator: bool
+  out result: int
+  do if is_keyword
+    1
+  elif is_operator
+    6
+  else
+    5
+  end
+
+fn token_priority
+  in kind: int
+  out result: int
+  inv gte result 0
+  do if eq kind 1
+    10
+  elif eq kind 6
+    5
+  elif eq kind 4
+    1
+  else
+    0
+  end

@@ -251,6 +251,42 @@ impl<'a> FunctionEmitter<'a> {
             Expr::Temporal(inner, _) => {
                 self.emit_expr(inner, insn)?;
             }
+
+            Expr::EnumVariant(_enum_name, _variant_name, args) => {
+                if args.is_empty() {
+                    insn.i64_const(0);
+                } else {
+                    self.emit_expr(&args[0], insn)?;
+                }
+            }
+
+            Expr::Match { scrutinee, arms } => {
+                self.emit_expr(scrutinee, insn)?;
+                insn.drop();
+                if let Some(first_arm) = arms.first() {
+                    for e in &first_arm.body {
+                        self.emit_expr(e, insn)?;
+                    }
+                } else {
+                    insn.i64_const(0);
+                }
+            }
+
+            Expr::Spawn(inner) => {
+                self.emit_expr(inner, insn)?;
+            }
+
+            Expr::Await(inner) => {
+                self.emit_expr(inner, insn)?;
+            }
+
+            Expr::Send(_, val) => {
+                self.emit_expr(val, insn)?;
+            }
+
+            Expr::Recv(_) => {
+                insn.i64_const(0);
+            }
         }
         Ok(())
     }

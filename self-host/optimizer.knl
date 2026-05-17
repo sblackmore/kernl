@@ -1,0 +1,102 @@
+# Self-hosted kernl optimizer
+# Demonstrates constant folding and dead code elimination
+
+fn is_constant
+  in node_kind: int
+  out result: bool
+  do eq node_kind 4
+
+fn fold_add
+  in a: int
+  in b: int
+  out result: int
+  ens eq result add a b
+  do add a b
+
+fn fold_sub
+  in a: int
+  in b: int
+  out result: int
+  ens eq result sub a b
+  do sub a b
+
+fn fold_mul
+  in a: int
+  in b: int
+  out result: int
+  ens eq result mul a b
+  do mul a b
+
+fn fold_div
+  in a: int
+  in b: int
+  out result: int
+  req neq b 0
+  do div a b
+
+fn fold_comparison
+  in op: int
+  in a: int
+  in b: int
+  out result: bool
+  do if eq op 0
+    eq a b
+  elif eq op 1
+    neq a b
+  elif eq op 2
+    gt a b
+  elif eq op 3
+    lt a b
+  elif eq op 4
+    gte a b
+  else
+    lte a b
+  end
+
+fn is_dead_branch
+  in condition_known: bool
+  in condition_value: bool
+  out result: bool
+  ens eq result and condition_known not condition_value
+  do and condition_known not condition_value
+
+fn should_eliminate
+  in is_dead: bool
+  in has_side_effects: bool
+  out result: bool
+  ens eq result and is_dead not has_side_effects
+  do and is_dead not has_side_effects
+
+fn constant_fold_binary
+  in op: int
+  in left_const: bool
+  in right_const: bool
+  in left_val: int
+  in right_val: int
+  out result: int
+  req and left_const right_const
+  do if eq op 0
+    add left_val right_val
+  elif eq op 1
+    sub left_val right_val
+  elif eq op 2
+    mul left_val right_val
+  elif eq op 3
+    div left_val right_val
+  else
+    0
+  end
+
+fn optimization_applicable
+  in node_kind: int
+  in left_const: bool
+  in right_const: bool
+  out result: bool
+  ens eq result and eq node_kind 6 and left_const right_const
+  do and eq node_kind 6 and left_const right_const
+
+fn fold_negate
+  in val: int
+  out result: int
+  ens eq result sub 0 val
+  do sub 0 val

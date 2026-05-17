@@ -181,6 +181,79 @@ fn recommend
 
 Fluid functions compile to a runtime that can invoke external resolvers (including LLMs) for underspecified regions.
 
+## Algebraic types (enums)
+
+Enums are sums of variants; each variant may carry zero or more typed fields.
+
+```
+enum OptionInt
+  None
+  Some int
+end
+```
+
+Construct values with `EnumName VariantName` followed by field expressions (parentheses optional when arity matches):
+
+```
+OptionInt None
+OptionInt Some 42
+```
+
+## Pattern matching
+
+```
+match scrutinee
+  VariantName x y =>
+    body_expr
+  OtherVariant =>
+    body_expr
+  _ =>
+    default_body
+end
+```
+
+- `_` is a wildcard pattern.
+- Literal patterns (`42`, `true`, `"hi"`) are supported where the scrutinee type matches.
+- Tuple patterns `(a, b)` match tuple scrutinees.
+
+Arms are checked for exhaustiveness against enum variants when the scrutinee is a known enum type.
+
+## Contracts
+
+Beyond `inv`, functions may declare pre- and postconditions:
+
+```
+fn safe_div
+  in a: int b: int
+  out result: int
+  req neq b 0
+  ens eq (mul result b) a
+  do div a b
+```
+
+- `req` — precondition (must hold at entry)
+- `ens` — postcondition (must hold for the result binding after `do`)
+
+These participate in SMT verification (`kernlc --verify`) and in proof export (`--export-lean`, `--export-coq`).
+
+## Async and concurrency
+
+```
+fn compute
+  mode async
+  in x: int
+  out r: int
+  do add x 1
+```
+
+- `mode async` — function body is evaluated eagerly in the interpreter but wrapped as a **future** value; full scheduling is implementation-defined.
+
+Structured concurrency keywords:
+
+- `spawn expr` — start work (interpreter: evaluates inner expression and wraps as `Future`).
+- `await expr` — unwrap a future (interpreter: evaluates inner value and strips `Future`).
+- `send ch val` / `recv ch` — channel send/receive (reserved for runtime expansion).
+
 ## Modules
 
 ```
@@ -193,7 +266,6 @@ use io.print
 
 ## Reserved for future
 
-- `async` / `await` — concurrent execution
 - `test` — inline test blocks
-- `proof` — formal proof annotations
-- `target` — compilation target hints
+- `proof` — formal proof annotations beside export pipelines
+- `target` — compilation target hints in source

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 /* ── Memory ───────────────────────────────────────────────────────── */
 
@@ -132,4 +133,83 @@ void kernl_print_float(double x) {
 
 void kernl_print_bool(int64_t b) {
     printf("%s\n", b ? "true" : "false");
+}
+
+/* ── Profiling ────────────────────────────────────────────────────── */
+
+#define KERNL_PROF_MAX_FUNCS 256
+
+typedef struct {
+    const char* name;
+    uint64_t    call_count;
+    double      total_ns;
+    double      max_ns;
+    double      min_ns;
+    struct timespec start;
+} kernl_prof_entry_t;
+
+static kernl_prof_entry_t __kernl_prof_table[KERNL_PROF_MAX_FUNCS];
+static int __kernl_prof_count = 0;
+static int __kernl_prof_initialized = 0;
+
+static kernl_prof_entry_t* kernl_prof_find_or_create(const char* name) {
+    for (int i = 0; i < __kernl_prof_count; i++) {
+        if (__kernl_prof_table[i].name == name ||
+            strcmp(__kernl_prof_table[i].name, name) == 0) {
+            return &__kernl_prof_table[i];
+        }
+    }
+    if (__kernl_prof_count < KERNL_PROF_MAX_FUNCS) {
+        kernl_prof_entry_t* e = &__kernl_prof_table[__kernl_prof_count++];
+        e->name = name;
+        e->call_count = 0;
+        e->total_ns = 0.0;
+        e->max_ns = 0.0;
+        e->min_ns = 1e18;
+        return e;
+    }
+    return NULL;
+}
+
+void __kernl_profile_enter(const char* func_name) {
+    if (!__kernl_prof_initialized) {
+        __kernl_prof_initialized = 1;
+        atexit(__kernl_profile_report);
+    }
+    kernl_prof_entry_t* e = kernl_prof_find_or_create(func_name);
+    if (e) {
+        clock_gettime(CLOCK_MONOTONIC, &e->start);
+    }
+}
+
+void __kernl_profile_exit(const char* func_name) {
+    struct timespec end;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    kernl_prof_entry_t* e = kernl_prof_find_or_create(func_name);
+    if (e) {
+        double elapsed = (double)(end.tv_sec - e->start.tv_sec) * 1e9 +
+                         (double)(end.tv_nsec - e->start.tv_nsec);
+        e->call_count++;
+        e->total_ns += elapsed;
+        if (elapsed > e->max_ns) e->max_ns = elapsed;
+        if (elapsed < e->min_ns) e->min_ns = elapsed;
+    }
+}
+
+void __kernl_profile_report(void) {
+    if (__kernl_prof_count == 0) return;
+    fprintf(stderr, "\n--- kernl profile report ---\n");
+    fprintf(stderr, "%-30s %8s %12s %12s %12s\n",
+            "function", "calls", "total(ms)", "avg(ms)", "max(ms)");
+    fprintf(stderr, "%.76s\n",
+            "----------------------------------------------------------------------------");
+    for (int i = 0; i < __kernl_prof_count; i++) {
+        kernl_prof_entry_t* e = &__kernl_prof_table[i];
+        double total_ms = e->total_ns / 1e6;
+        double avg_ms = e->call_count > 0 ? total_ms / (double)e->call_count : 0.0;
+        double max_ms = e->max_ns / 1e6;
+        fprintf(stderr, "%-30s %8llu %12.3f %12.3f %12.3f\n",
+                e->name, (unsigned long long)e->call_count,
+                total_ms, avg_ms, max_ms);
+    }
 }

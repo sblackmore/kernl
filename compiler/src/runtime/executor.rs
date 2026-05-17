@@ -9,6 +9,8 @@ pub enum Value {
     Bool(bool),
     Str(String),
     List(Vec<Value>),
+    Enum(String, String, Vec<Value>),
+    Future(Box<Value>),
     Void,
 }
 
@@ -23,6 +25,15 @@ impl std::fmt::Display for Value {
                 let strs: Vec<String> = items.iter().map(|v| v.to_string()).collect();
                 write!(f, "[{}]", strs.join(", "))
             }
+            Value::Enum(enum_name, variant, fields) => {
+                if fields.is_empty() {
+                    write!(f, "{enum_name}::{variant}")
+                } else {
+                    let strs: Vec<String> = fields.iter().map(|v| v.to_string()).collect();
+                    write!(f, "{enum_name}::{}({})", variant, strs.join(", "))
+                }
+            }
+            Value::Future(inner) => write!(f, "Future({inner})"),
             Value::Void => write!(f, "void"),
         }
     }
@@ -59,6 +70,7 @@ impl Executor {
                         .collect();
                     self.structs.insert(s.name.clone(), fields);
                 }
+                Item::Enum(_) => {}
                 _ => {}
             }
         }
@@ -75,6 +87,16 @@ impl Executor {
 
         if func.mode == FnMode::Fluid {
             return self.resolve_fluid(&func, &args);
+        }
+
+        // Async mode: evaluate eagerly (placeholder for real async runtime)
+        if func.mode == FnMode::Async {
+            let mut env: HashMap<String, Value> = HashMap::new();
+            for (param, arg) in func.params.iter().zip(args.iter()) {
+                env.insert(param.name.clone(), arg.clone());
+            }
+            let result = self.eval_expr(&func.body, &mut env)?;
+            return Ok(Value::Future(Box::new(result)));
         }
 
         let mut env: HashMap<String, Value> = HashMap::new();
@@ -214,6 +236,97 @@ impl Executor {
             Expr::Block(exprs) => self.eval_block(exprs, env),
 
             Expr::Field(_, _) | Expr::Temporal(_, _) => Ok(Value::Void),
+
+            Expr::EnumVariant(enum_name, variant_name, args) => {
+                let mut vals = Vec::new();
+                for arg in args {
+                    vals.push(self.eval_expr(arg, env)?);
+                }
+                Ok(Value::Enum(enum_name.clone(), variant_name.clone(), vals))
+            }
+
+            Expr::Match { scrutinee, arms } => {
+                let scrut_val = self.eval_expr(scrutinee, env)?;
+                for arm in arms {
+                    if let Some(bindings) = self.match_pattern(&arm.pattern, &scrut_val) {
+                        let mut arm_env = env.clone();
+                        for (name, val) in bindings {
+                            arm_env.insert(name, val);
+                        }
+                        return self.eval_block(&arm.body, &mut arm_env);
+                    }
+                }
+                Ok(Value::Void)
+            }
+
+            Expr::Spawn(inner) => {
+                let val = self.eval_expr(inner, env)?;
+                Ok(Value::Future(Box::new(val)))
+            }
+
+            Expr::Await(inner) => {
+                let val = self.eval_expr(inner, env)?;
+                match val {
+                    Value::Future(inner_val) => Ok(*inner_val),
+                    other => Ok(other),
+                }
+            }
+
+            Expr::Send(_, val) => {
+                self.eval_expr(val, env)?;
+                Ok(Value::Void)
+            }
+
+            Expr::Recv(_) => Ok(Value::Void),
+        }
+    }
+
+    fn match_pattern(&self, pattern: &Pattern, value: &Value) -> Option<Vec<(String, Value)>> {
+        match pattern {
+            Pattern::Wildcard => Some(vec![]),
+            Pattern::Literal(expr) => {
+                match (expr, value) {
+                    (Expr::IntLit(n), Value::Int(v)) if n == v => Some(vec![]),
+                    (Expr::FloatLit(n), Value::Float(v)) if *n == *v => Some(vec![]),
+                    (Expr::BoolLit(b), Value::Bool(v)) if b == v => Some(vec![]),
+                    (Expr::StrLit(s), Value::Str(v)) if s == v => Some(vec![]),
+                    _ => None,
+                }
+            }
+            Pattern::Binding(name) => {
+                Some(vec![(name.clone(), value.clone())])
+            }
+            Pattern::Variant(variant_name, sub_patterns) => {
+                if let Value::Enum(_, val_variant, fields) = value {
+                    if variant_name == val_variant {
+                        let mut bindings = Vec::new();
+                        for (i, sub_pat) in sub_patterns.iter().enumerate() {
+                            let field_val = fields.get(i).cloned().unwrap_or(Value::Void);
+                            match self.match_pattern(sub_pat, &field_val) {
+                                Some(sub_bindings) => bindings.extend(sub_bindings),
+                                None => return None,
+                            }
+                        }
+                        return Some(bindings);
+                    }
+                }
+                None
+            }
+            Pattern::Tuple(pats) => {
+                if let Value::List(items) = value {
+                    let mut bindings = Vec::new();
+                    for (i, pat) in pats.iter().enumerate() {
+                        let item = items.get(i).cloned().unwrap_or(Value::Void);
+                        match self.match_pattern(pat, &item) {
+                            Some(sub_bindings) => bindings.extend(sub_bindings),
+                            None => return None,
+                        }
+                    }
+                    Some(bindings)
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -578,5 +691,90 @@ mod tests {
         exec.call("main", vec![]).unwrap();
         let output = exec.get_output();
         assert_eq!(output, &["hello", "world"]);
+    }
+
+    #[test]
+    fn eval_match_expression() {
+        let mut exec = Executor::new(stub_config());
+
+        let body = Expr::Match {
+            scrutinee: Box::new(Expr::Ident("x".into())),
+            arms: vec![
+                MatchArm {
+                    pattern: Pattern::Literal(Expr::IntLit(1)),
+                    body: vec![Expr::StrLit("one".into())],
+                },
+                MatchArm {
+                    pattern: Pattern::Literal(Expr::IntLit(2)),
+                    body: vec![Expr::StrLit("two".into())],
+                },
+                MatchArm {
+                    pattern: Pattern::Wildcard,
+                    body: vec![Expr::StrLit("other".into())],
+                },
+            ],
+        };
+        let func = strict_fn("describe", vec![int_param("x")], body);
+        let prog = make_program(vec![Item::Function(func)]);
+        exec.load(&prog);
+
+        let r1 = exec.call("describe", vec![Value::Int(1)]).unwrap();
+        assert!(matches!(r1, Value::Str(ref s) if s == "one"));
+
+        let r2 = exec.call("describe", vec![Value::Int(2)]).unwrap();
+        assert!(matches!(r2, Value::Str(ref s) if s == "two"));
+
+        let r3 = exec.call("describe", vec![Value::Int(99)]).unwrap();
+        assert!(matches!(r3, Value::Str(ref s) if s == "other"));
+    }
+
+    #[test]
+    fn eval_enum_variant_and_match() {
+        let mut exec = Executor::new(stub_config());
+
+        let body = Expr::Match {
+            scrutinee: Box::new(Expr::EnumVariant(
+                "Color".into(),
+                "Red".into(),
+                vec![],
+            )),
+            arms: vec![
+                MatchArm {
+                    pattern: Pattern::Variant("Red".into(), vec![]),
+                    body: vec![Expr::IntLit(1)],
+                },
+                MatchArm {
+                    pattern: Pattern::Variant("Blue".into(), vec![]),
+                    body: vec![Expr::IntLit(2)],
+                },
+                MatchArm {
+                    pattern: Pattern::Wildcard,
+                    body: vec![Expr::IntLit(0)],
+                },
+            ],
+        };
+        let func = strict_fn("main", vec![], body);
+        let prog = make_program(vec![Item::Function(func)]);
+        exec.load(&prog);
+
+        let result = exec.call("main", vec![]).unwrap();
+        assert!(matches!(result, Value::Int(1)));
+    }
+
+    #[test]
+    fn eval_spawn_await_produces_correct_value() {
+        let mut exec = Executor::new(stub_config());
+
+        let body = Expr::Await(Box::new(
+            Expr::Spawn(Box::new(
+                Expr::Op(Op::Add, vec![Expr::IntLit(10), Expr::IntLit(20)]),
+            )),
+        ));
+        let func = strict_fn("main", vec![], body);
+        let prog = make_program(vec![Item::Function(func)]);
+        exec.load(&prog);
+
+        let result = exec.call("main", vec![]).unwrap();
+        assert!(matches!(result, Value::Int(30)));
     }
 }

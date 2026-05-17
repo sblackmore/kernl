@@ -6,10 +6,12 @@ use std::process;
 use kernlc::codegen::{Codegen, Target};
 use kernlc::codegen::llvm::LlvmEmitter;
 use kernlc::codegen::llvm_opt::{self, Pass};
+use kernlc::debugger::Debugger;
 use kernlc::driver::{Driver, DriverConfig, OptLevel};
 use kernlc::driver::targets::CompileTarget;
 use kernlc::lexer::Lexer;
 use kernlc::parser::Parser;
+use kernlc::profiler::{instrument::instrument_llvm_ir, Profiler};
 use kernlc::runtime::executor::{Executor, Value};
 use kernlc::runtime::ResolverConfig;
 use kernlc::semantic::SemanticAnalyzer;
@@ -63,6 +65,8 @@ fn main() {
         eprintln!("modes:");
         eprintln!("  --repl                      launch interactive REPL");
         eprintln!("  --run                       interpret the program via executor");
+        eprintln!("  --profile                   print profiling report after execution (with --run)");
+        eprintln!("  --debug                     enable interactive debugger (with --run)");
         eprintln!();
         eprintln!("run options:");
         eprintln!("  --resolver-endpoint <url>   LLM API endpoint for fluid mode");
@@ -70,6 +74,14 @@ fn main() {
         eprintln!();
         eprintln!("verification:");
         eprintln!("  --verify  formally verify invariants via SMT solver (Z3)");
+        eprintln!();
+        eprintln!("proof export:");
+        eprintln!("  --export-lean  emit Lean 4 proof skeletons (stdout)");
+        eprintln!("  --export-coq   emit Coq proof skeletons (stdout)");
+        eprintln!();
+        eprintln!("instrumentation:");
+        eprintln!("  --instrument-llvm  insert __kernl_profile_enter/exit calls into LLVM IR");
+        eprintln!("                     (link runtime/kernl_profile.o via libkernl_rt.a)");
         eprintln!();
         eprintln!("native options:");
         eprintln!("  --runtime-path <dir>  path to dir containing libkernl_rt.a");
@@ -88,6 +100,9 @@ fn main() {
     let path = &args[1];
     let do_verify = args.iter().any(|a| a == "--verify");
     let do_run = args.iter().any(|a| a == "--run");
+    let do_export_lean = args.iter().any(|a| a == "--export-lean");
+    let do_export_coq = args.iter().any(|a| a == "--export-coq");
+    let instrument_llvm = args.iter().any(|a| a == "--instrument-llvm");
 
     let target_str = args.iter()
         .position(|a| a == "--target")
@@ -117,6 +132,11 @@ fn main() {
         return;
     }
 
+    if do_export_lean || do_export_coq {
+        run_proof_export(&source, do_export_lean);
+        return;
+    }
+
     if do_run {
         run_program(&source, &args);
         return;
@@ -125,14 +145,14 @@ fn main() {
     let debug_info = args.iter().any(|a| a == "--debug-info");
 
     if is_native {
-        emit_native(&source, path, &args, debug_info);
+        emit_native(&source, path, &args, debug_info, instrument_llvm);
     } else if matches!(target, Target::WasmBinary) {
         emit_wasm_binary(&source, path);
     } else if matches!(target, Target::LlvmIr) && debug_info {
-        emit_llvm_with_debug(&source, path);
+        emit_llvm_with_debug(&source, path, instrument_llvm);
     } else {
         match kernlc::compile(&source, target) {
-            Ok(result) => {
+            Ok(mut result) => {
                 for e in &result.semantic_errors {
                     eprintln!("semantic: {e}");
                 }
@@ -141,6 +161,9 @@ fn main() {
                 }
                 for w in &result.warnings {
                     eprintln!("warning: {w}");
+                }
+                if instrument_llvm && target_str == "llvm" {
+                    result.output = instrument_llvm_ir(&result.output);
                 }
                 println!("{}", result.output);
 
@@ -163,7 +186,7 @@ fn get_flag_value(args: &[String], flag: &str) -> Option<String> {
         .cloned()
 }
 
-fn emit_llvm_with_debug(source: &str, input_path: &str) {
+fn emit_llvm_with_debug(source: &str, input_path: &str, instrument_llvm: bool) {
     let tokens = match Lexer::new(source).tokenize() {
         Ok(t) => t,
         Err(e) => { eprintln!("error: [lex] {e}"); process::exit(1); }
@@ -188,12 +211,17 @@ fn emit_llvm_with_debug(source: &str, input_path: &str) {
     let directory = Path::new(input_path).parent().unwrap_or(Path::new(".")).to_string_lossy().to_string();
 
     match LlvmEmitter::emit_with_debug(&program, &file_name, &directory) {
-        Ok(ir) => println!("{ir}"),
+        Ok(mut ir) => {
+            if instrument_llvm {
+                ir = instrument_llvm_ir(&ir);
+            }
+            println!("{ir}");
+        }
         Err(e) => { eprintln!("error: [codegen] {e}"); process::exit(1); }
     }
 }
 
-fn emit_native(source: &str, input_path: &str, args: &[String], debug_info: bool) {
+fn emit_native(source: &str, input_path: &str, args: &[String], debug_info: bool, instrument_llvm: bool) {
     let opt_level = match get_flag_value(args, "-O").as_deref() {
         Some("0") => OptLevel::O0,
         Some("1") => OptLevel::O1,
@@ -273,7 +301,7 @@ fn emit_native(source: &str, input_path: &str, args: &[String], debug_info: bool
         }
     };
 
-    let ir = if !passes.is_empty() && llvm_opt::has_opt() {
+    let mut ir = if !passes.is_empty() && llvm_opt::has_opt() {
         match llvm_opt::optimize_ir(&ir, &passes) {
             Ok(optimized) => optimized,
             Err(e) => {
@@ -285,13 +313,17 @@ fn emit_native(source: &str, input_path: &str, args: &[String], debug_info: bool
         ir
     };
 
-            let config = DriverConfig {
-                opt_level,
-                output: Some(output_path.clone()),
-                runtime_path,
-                keep_intermediates,
-                target: cross_target,
-            };
+    if instrument_llvm {
+        ir = instrument_llvm_ir(&ir);
+    }
+
+    let config = DriverConfig {
+        opt_level,
+        output: Some(output_path.clone()),
+        runtime_path,
+        keep_intermediates,
+        target: cross_target,
+    };
 
     let driver = Driver::new(config);
     if let Err(e) = driver.compile_to_native(&ir, &output_path) {
@@ -469,6 +501,9 @@ fn run_verify(source: &str, path: &str) {
 }
 
 fn run_program(source: &str, args: &[String]) {
+    let do_profile = args.iter().any(|a| a == "--profile");
+    let do_debug = args.iter().any(|a| a == "--debug");
+
     let tokens = match Lexer::new(source).tokenize() {
         Ok(t) => t,
         Err(e) => {
@@ -500,6 +535,30 @@ fn run_program(source: &str, args: &[String]) {
     let mut executor = Executor::new(config);
     executor.load(&program);
 
+    let mut profiler = Profiler::new();
+    if do_profile {
+        profiler.enable();
+    }
+
+    let mut debugger = if do_debug {
+        let mut dbg = Debugger::new();
+        eprintln!("kernl debugger active. Type 'h' for help at the prompt.");
+        eprintln!("Enter breakpoint function names (one per line, empty line to start):");
+        let stdin = std::io::stdin();
+        loop {
+            let mut line = String::new();
+            if stdin.read_line(&mut line).unwrap_or(0) == 0 || line.trim().is_empty() {
+                break;
+            }
+            let bp_name = line.trim().to_string();
+            let id = dbg.add_breakpoint(&bp_name);
+            eprintln!("breakpoint #{id} set on '{bp_name}'");
+        }
+        Some(dbg)
+    } else {
+        None
+    };
+
     let entry = if executor_has_function(&program, "main") {
         "main"
     } else {
@@ -512,6 +571,30 @@ fn run_program(source: &str, args: &[String]) {
         }
     };
 
+    profiler.enter(entry);
+    if let Some(ref mut dbg) = debugger {
+        let locals = std::collections::HashMap::new();
+        dbg.enter_function(entry, &locals);
+        if dbg.should_break(entry) {
+            eprintln!("break at function '{entry}'");
+            use kernlc::debugger::DebugAction;
+            loop {
+                match dbg.prompt() {
+                    DebugAction::Continue => break,
+                    DebugAction::Backtrace => dbg.print_backtrace(),
+                    DebugAction::Locals => dbg.print_locals(),
+                    DebugAction::Print(var) => dbg.print_variable(&var),
+                    DebugAction::ListBreakpoints => dbg.list_breakpoints(),
+                    DebugAction::Quit => {
+                        eprintln!("debugger quit");
+                        process::exit(0);
+                    }
+                    _ => break,
+                }
+            }
+        }
+    }
+
     match executor.call(entry, vec![]) {
         Ok(result) => {
             if !matches!(result, Value::Void) {
@@ -522,6 +605,40 @@ fn run_program(source: &str, args: &[String]) {
             eprintln!("runtime error: {}", e.message);
             process::exit(1);
         }
+    }
+
+    profiler.exit(entry);
+    if let Some(ref mut dbg) = debugger {
+        dbg.exit_function();
+    }
+
+    if do_profile {
+        eprintln!("\n--- kernl profile report ---");
+        eprint!("{}", profiler.report());
+    }
+}
+
+fn run_proof_export(source: &str, lean: bool) {
+    let tokens = match Lexer::new(source).tokenize() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("error: [lex] {e}");
+            process::exit(1);
+        }
+    };
+
+    let program = match Parser::new(tokens).parse_program() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("error: [parse] {e}");
+            process::exit(1);
+        }
+    };
+
+    if lean {
+        println!("{}", kernlc::proof::LeanExporter::export_program(&program));
+    } else {
+        println!("{}", kernlc::proof::CoqExporter::export_program(&program));
     }
 }
 

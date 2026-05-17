@@ -50,7 +50,16 @@ impl<'src> Lexer<'src> {
                 b'"' => tokens.push(self.lex_string()?),
                 b':' => { tokens.push(self.make_span(Token::Colon, 1)); self.advance(); }
                 b'|' => { tokens.push(self.make_span(Token::Pipe, 1)); self.advance(); }
-                b'=' => { tokens.push(self.make_span(Token::Assign, 1)); self.advance(); }
+                b'=' => {
+                    if self.pos + 1 < self.src.len() && self.src[self.pos + 1] == b'>' {
+                        tokens.push(self.make_span(Token::Arrow, 2));
+                        self.advance();
+                        self.advance();
+                    } else {
+                        tokens.push(self.make_span(Token::Assign, 1));
+                        self.advance();
+                    }
+                }
                 b'[' => { tokens.push(self.make_span(Token::LBracket, 1)); self.advance(); }
                 b']' => { tokens.push(self.make_span(Token::RBracket, 1)); self.advance(); }
                 b'{' => { tokens.push(self.make_span(Token::LBrace, 1)); self.advance(); }
@@ -196,8 +205,12 @@ impl<'src> Lexer<'src> {
         }
 
         let text = std::str::from_utf8(&self.src[start..self.pos]).unwrap();
-        let token = Token::keyword_from_str(text)
-            .unwrap_or_else(|| Token::Ident(text.to_string()));
+        let token = if text == "_" {
+            Token::Underscore
+        } else {
+            Token::keyword_from_str(text)
+                .unwrap_or_else(|| Token::Ident(text.to_string()))
+        };
 
         Spanned {
             token,
@@ -323,5 +336,32 @@ mod tests {
             Token::Ident("reduce".into()),
             Token::Add,
         ]);
+    }
+
+    #[test]
+    fn enum_match_keywords() {
+        assert_eq!(lex("enum match"), vec![Token::Enum, Token::Match]);
+    }
+
+    #[test]
+    fn spawn_await_send_recv_tokens() {
+        assert_eq!(lex("spawn await send recv async"), vec![
+            Token::Spawn, Token::AwaitKw, Token::Send, Token::Recv, Token::Async,
+        ]);
+    }
+
+    #[test]
+    fn arrow_token() {
+        assert_eq!(lex("=>"), vec![Token::Arrow]);
+    }
+
+    #[test]
+    fn underscore_token() {
+        assert_eq!(lex("_"), vec![Token::Underscore]);
+    }
+
+    #[test]
+    fn underscore_in_ident_is_ident() {
+        assert_eq!(lex("foo_bar"), vec![Token::Ident("foo_bar".into())]);
     }
 }

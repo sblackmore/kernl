@@ -26,9 +26,16 @@ pub enum Token {
     Each,
     While,
     Struct,
+    Enum,
+    Match,
     Mod,
     Use,
     Mode,
+    Spawn,
+    AwaitKw,
+    Send,
+    Recv,
+    Async,
     Intent,
     Confidence,
     Fallback,
@@ -56,6 +63,8 @@ pub enum Token {
     Colon,       // :
     Pipe,        // |
     Assign,      // =
+    Arrow,       // =>
+    Underscore,  // _
     LBracket,    // [
     RBracket,    // ]
     LBrace,      // {
@@ -100,9 +109,16 @@ impl Token {
             "each" => Some(Token::Each),
             "while" => Some(Token::While),
             "struct" => Some(Token::Struct),
+            "enum" => Some(Token::Enum),
+            "match" => Some(Token::Match),
             "mod" => Some(Token::Mod),
             "use" => Some(Token::Use),
             "mode" => Some(Token::Mode),
+            "spawn" => Some(Token::Spawn),
+            "await" => Some(Token::AwaitKw),
+            "send" => Some(Token::Send),
+            "recv" => Some(Token::Recv),
+            "async" => Some(Token::Async),
             "intent" => Some(Token::Intent),
             "confidence" => Some(Token::Confidence),
             "fallback" => Some(Token::Fallback),

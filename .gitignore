@@ -19,6 +19,10 @@ dist/
 build/
 out/
 
+# Native runtime objects (build with `make -C runtime`)
+runtime/*.o
+runtime/*.a
+
 # Environment
 .env
 .env.*

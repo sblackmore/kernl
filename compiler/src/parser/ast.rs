@@ -9,6 +9,7 @@ pub struct Program {
 pub enum Item {
     Function(Function),
     Struct(StructDef),
+    Enum(EnumDef),
     Module(ModuleDecl),
     Use(UseDecl),
 }
@@ -34,6 +35,7 @@ pub struct Function {
 pub enum FnMode {
     Strict,
     Fluid,
+    Async,
 }
 
 /// Parameter (used in both `in` and `out` clauses).
@@ -108,6 +110,27 @@ pub enum Expr {
 
     /// Block (sequence of expressions, last is the value)
     Block(Vec<Expr>),
+
+    /// Enum variant constructor: `Some 42`, `None`, `Ok value`
+    EnumVariant(String, String, Vec<Expr>),
+
+    /// Pattern match expression
+    Match {
+        scrutinee: Box<Expr>,
+        arms: Vec<MatchArm>,
+    },
+
+    /// Spawn async task: `spawn expr`
+    Spawn(Box<Expr>),
+
+    /// Await a spawned task: `await handle`
+    Await(Box<Expr>),
+
+    /// Channel send: `send channel value`
+    Send(Box<Expr>, Box<Expr>),
+
+    /// Channel receive: `recv channel`
+    Recv(Box<Expr>),
 }
 
 /// Named operators.
@@ -118,11 +141,47 @@ pub enum Op {
     And, Or, Not,
 }
 
+/// A single arm in a match expression
+#[derive(Debug, Clone)]
+pub struct MatchArm {
+    pub pattern: Pattern,
+    pub body: Vec<Expr>,
+}
+
+/// Patterns for match expressions
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    /// Wildcard: `_`
+    Wildcard,
+    /// Literal: `42`, `"hello"`, `true`
+    Literal(Expr),
+    /// Variable binding: `x`
+    Binding(String),
+    /// Enum variant: `Some x`, `None`, `Ok val`
+    Variant(String, Vec<Pattern>),
+    /// Tuple: `(a, b)`
+    Tuple(Vec<Pattern>),
+}
+
 /// Struct definition.
 #[derive(Debug, Clone)]
 pub struct StructDef {
     pub name: String,
     pub fields: Vec<Param>,
+}
+
+/// Enum (algebraic data type) definition
+#[derive(Debug, Clone)]
+pub struct EnumDef {
+    pub name: String,
+    pub variants: Vec<Variant>,
+}
+
+/// A single variant of an enum
+#[derive(Debug, Clone)]
+pub struct Variant {
+    pub name: String,
+    pub fields: Vec<Type>,
 }
 
 /// Module declaration: `mod math`

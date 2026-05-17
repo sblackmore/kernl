@@ -1,0 +1,137 @@
+# Self-hosted kernl type checker
+# Demonstrates type inference and checking in kernl's own notation
+
+# Type representations
+# 0 = int, 1 = float, 2 = bool, 3 = str, 4 = void, 5 = unknown
+
+fn type_name
+  in ty: int
+  out result: str
+  do if eq ty 0
+    "int"
+  elif eq ty 1
+    "float"
+  elif eq ty 2
+    "bool"
+  elif eq ty 3
+    "str"
+  elif eq ty 4
+    "void"
+  else
+    "unknown"
+  end
+
+fn is_numeric
+  in ty: int
+  out result: bool
+  ens eq result or eq ty 0 eq ty 1
+  do or eq ty 0 eq ty 1
+
+fn is_compatible
+  in a: int
+  in b: int
+  out result: bool
+  do if eq a b
+    true
+  elif eq a 5
+    true
+  elif eq b 5
+    true
+  else
+    false
+  end
+
+fn infer_arithmetic
+  in left_ty: int
+  in right_ty: int
+  out result: int
+  req is_numeric left_ty
+  req is_numeric right_ty
+  ens is_numeric result
+  do if eq left_ty 1
+    1
+  elif eq right_ty 1
+    1
+  else
+    0
+  end
+
+fn infer_comparison
+  in left_ty: int
+  in right_ty: int
+  out result: int
+  ens eq result 2
+  do 2
+
+fn infer_boolean_op
+  in left_ty: int
+  in right_ty: int
+  out result: int
+  req eq left_ty 2
+  req eq right_ty 2
+  ens eq result 2
+  do 2
+
+fn check_invariant_type
+  in inv_ty: int
+  out result: bool
+  ens eq result eq inv_ty 2
+  do eq inv_ty 2
+
+fn check_return_type
+  in body_ty: int
+  in expected_ty: int
+  out result: bool
+  do if eq expected_ty 5
+    true
+  elif eq body_ty 5
+    true
+  else
+    eq body_ty expected_ty
+  end
+
+fn unify
+  in a: int
+  in b: int
+  out result: int
+  do if eq a 5
+    b
+  elif eq b 5
+    a
+  elif eq a b
+    a
+  else
+    5
+  end
+
+fn can_coerce
+  in from: int
+  in to: int
+  out result: bool
+  do if eq from to
+    true
+  elif eq from 5
+    true
+  elif eq to 5
+    true
+  elif and eq from 0 eq to 1
+    true
+  else
+    false
+  end
+
+fn type_size
+  in ty: int
+  out result: int
+  inv gte result 0
+  do if eq ty 0
+    8
+  elif eq ty 1
+    8
+  elif eq ty 2
+    1
+  elif eq ty 3
+    0
+  else
+    0
+  end

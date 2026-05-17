@@ -203,12 +203,13 @@ See [INSTALL.md](INSTALL.md) for detailed instructions.
 ```bash
 cd compiler
 cargo build --release    # optimized build
-cargo test               # run 191 tests across all compiler modules
+cargo test               # compiler tests (see also pkg/, registry-server/, lsp/)
 ```
 
 ## Getting help
 
 - **Language guide:** [docs/getting-started.md](docs/getting-started.md)
+- **Debugging (GDB / LLDB / `--debug`):** [docs/debugging.md](docs/debugging.md)
 - **Full specification:** [spec/LANGUAGE.md](spec/LANGUAGE.md)
 - **Annotated examples:** [docs/examples.md](docs/examples.md)
 - **Compiler architecture:** [docs/architecture.md](docs/architecture.md)
@@ -225,41 +226,28 @@ Whether you're interested in language design, compiler engineering, formal verif
 Active development. The compiler is a complete toolchain with native compilation, cross-compilation, formal verification, an interpreter, and full editor support.
 
 **What works today:**
-- Full lexer and recursive descent parser for the kernl grammar
-- **Standard library** — 13 builtins (`filter`, `reduce`, `map`, `max`, `min`, `len`, `print`, `abs`, `sqrt`, `concat`, `range`) with native C runtime
+- Full lexer and recursive descent parser for the kernl grammar, including **algebraic data types** (`enum` … `end`), **`match` / patterns**, **`req` / `ens` contracts**, and **async-shaped** keywords (`mode async`, `spawn`, `await`, `send`, `recv`)
+- **Standard library** — builtins with native C runtime (`runtime/libkernl_rt.a`, now includes **profiling stubs** `kernl_profile.c` for `--instrument-llvm`)
 - **Semantic analysis** — scope resolution, undefined variable detection, duplicate binding checks, shadowing warnings
-- **Hindley-Milner type inference** — type variables, unification, occurs check, generic builtin instantiation, constraint propagation through pipes/if/let
-- **Constant folding** — evaluates `add 1 2` → `3` at compile time, including nested expressions and float arithmetic
-- **Dead code elimination** — removes `if true`/`if false` branches and `while false` loops
-- **LLVM IR emission** with intrinsic mapping, DWARF debug info (`--debug-info`), and configurable optimization passes (`--opt-passes`)
-- **LLVM optimization pipeline** — predefined O0–O3 pipelines (mem2reg, instcombine, GVN, LICM, loop-unroll, inline, tail call elim, etc.)
-- **Native binary compilation** — end-to-end `kernl → LLVM IR → object code → linked binary` via `--target native`
-- **Cross-compilation** — ARM64, ARM32, RISC-V 64/32, bare-metal targets via `--cross <triple>`
-- **WebAssembly Text (WAT) emission**
-- **WebAssembly binary emission** — direct `.wasm` output via `wasm-encoder`, no `wat2wasm` needed
-- **Formal verification** — SMT-LIB2 encoding of invariants and contracts (`req`/`ens`), Z3 integration via `--verify`, counterexample reporting
-- **Function contracts** — `req` (preconditions) and `ens` (postconditions) as first-class language constructs, verified via SMT
-- **Fluid mode: live LLM execution** — tree-walking interpreter (`--run`) with LLM resolver for fluid functions, configurable endpoint/model
-- **Interactive REPL** — `--repl` with session state, multi-line input, definition accumulation, target switching
-- **Incremental compilation** — file-level content-hash caching in `.kernl/cache.json`
-- **Module resolution** — file-based `use`/`mod` resolution with topological sort and circular dependency detection
-- **Package manager** (`kernl` CLI) — `init`, `build`, `run`, `check`, `add`, `install`, `search`, `publish`, `info` with `kernl.toml` manifest
-- **Package registry server** — file-backed HTTP server with publish, download, search, versioning
-- **Resolver daemon** — standalone HTTP server forwarding fluid-mode requests to LLM APIs
-- **LSP server** — diagnostics, hover (builtin signatures + keyword docs), completion (keywords, operators, builtins), full text sync
-- **VS Code extension** — syntax highlighting (TextMate grammar), language configuration, LSP integration
-- **Self-hosting** — tokenizer, expression evaluator, and formatter written in kernl
-- **264 tests** across compiler (191), package manager (24), registry (19), resolver (10), and LSP (20)
-- LLM token benchmark harness
+- **Hindley-Milner type inference** — unification, pipes, `match` exhaustiveness on enums
+- **Constant folding & DCE**
+- **LLVM IR emission** including `match` / enum lowering; **DWARF metadata** (`--debug-info`); **LLVM opt** pipelines (`--opt-passes`, `-O0`–`O3`)
+- **Native & cross-compilation** via `--target native` and `--cross <triple>`
+- **WebAssembly** text and binary emission
+- **Formal verification** — SMT (`--verify`) and **Lean / Coq skeleton export** (`--export-lean`, `--export-coq`), including generated **inductive types** from `enum` definitions
+- **Interpreter** — `--run` with optional **`--profile`** and interactive **`--debug`** (source-oriented breakpoints)
+- **LLVM IR instrumentation** — **`--instrument-llvm`** inserts `__kernl_profile_*` calls (link `libkernl_rt.a`)
+- **REPL**, **incremental cache**, **modules** (`mod` / `use`), **package manager** CLI, **registry server** with **Docker / Compose** ([registry-server/HOSTING.md](registry-server/HOSTING.md)), **resolver daemon**, **LSP**, **VS Code** extension
+- **Self-hosting examples** — tokenizer, **parser**, **typechecker**, **optimizer**, evaluator, formatter ([self-host/README.md](self-host/README.md))
+- **244 tests** in the compiler crate; additional tests in pkg, registry-server, resolver, LSP, benchmark
 
 **What's next:**
-- Algebraic data types and pattern matching
-- Async/concurrent execution model
-- Profiler and performance instrumentation
-- Debugger integration (GDB/LLDB with DWARF)
-- Package registry hosted infrastructure
-- More self-hosting: parser and type checker in kernl
-- Formal proof export to Lean/Coq
+- Deeper async runtime (scheduling, real channels, cancellation)
+- Richer pattern matching (nested patterns, guards)
+- Source-level stepping mapped cleanly to DWARF line tables across all codegen paths
+- Hardened registry (HTTPS-first client defaults, OAuth/API keys, CDN for tarballs)
+- Expand self-hosted phases until they compile the full language
+- Richer proof exports (definitions for `match`, lemmas linking `ens` to extracted code)
 
 ## License
 

@@ -184,6 +184,46 @@ impl WasmEmitter {
             Expr::Temporal(inner, _) => {
                 self.emit_expr(inner, func)?;
             }
+
+            Expr::EnumVariant(_enum_name, _variant_name, args) => {
+                self.push(";; enum variant constructor (tag + payload packed into i64)");
+                if args.is_empty() {
+                    self.push("i64.const 0");
+                } else {
+                    self.emit_expr(&args[0], func)?;
+                }
+            }
+
+            Expr::Match { scrutinee, arms } => {
+                self.emit_expr(scrutinee, func)?;
+                self.push(";; match expression (simplified: first arm)");
+                if let Some(first_arm) = arms.first() {
+                    self.push("drop");
+                    for e in &first_arm.body {
+                        self.emit_expr(e, func)?;
+                    }
+                }
+            }
+
+            Expr::Spawn(inner) => {
+                self.push(";; spawn (eager evaluation placeholder)");
+                self.emit_expr(inner, func)?;
+            }
+
+            Expr::Await(inner) => {
+                self.push(";; await (unwrap placeholder)");
+                self.emit_expr(inner, func)?;
+            }
+
+            Expr::Send(_, val) => {
+                self.push(";; send (placeholder)");
+                self.emit_expr(val, func)?;
+            }
+
+            Expr::Recv(_) => {
+                self.push(";; recv (placeholder)");
+                self.push("i64.const 0");
+            }
         }
         Ok(())
     }

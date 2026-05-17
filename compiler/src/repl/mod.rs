@@ -104,7 +104,7 @@ impl Repl {
     }
 
     pub fn needs_continuation(&self, line: &str) -> bool {
-        line.starts_with("fn ") || line.starts_with("struct ")
+        line.starts_with("fn ") || line.starts_with("struct ") || line.starts_with("enum ")
     }
 
     fn read_multiline<R: BufRead, W: Write>(
@@ -143,6 +143,10 @@ impl Repl {
                             }
                             Item::Struct(s) => {
                                 let _ = writeln!(writer, "defined struct {}", s.name);
+                                self.definitions.push(item.clone());
+                            }
+                            Item::Enum(e) => {
+                                let _ = writeln!(writer, "defined enum {}", e.name);
                                 self.definitions.push(item.clone());
                             }
                             _ => {}
@@ -209,6 +213,9 @@ impl Repl {
                 }
                 Item::Struct(s) => {
                     let _ = writeln!(writer, "struct {}", s.name);
+                }
+                Item::Enum(e) => {
+                    let _ = writeln!(writer, "enum {}", e.name);
                 }
                 _ => {}
             }
@@ -365,7 +372,7 @@ mod tests {
 
     #[test]
     fn test_defs_initially_empty() {
-        let mut repl = make_repl();
+        let repl = make_repl();
         let mut out = Vec::new();
         repl.print_definitions(&mut out);
         let text = String::from_utf8(out).unwrap();

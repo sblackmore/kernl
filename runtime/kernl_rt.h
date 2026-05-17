@@ -43,4 +43,9 @@ kernl_list_t kernl_list_new(int64_t cap);
 void kernl_list_free(kernl_list_t list);
 void kernl_str_free(kernl_str_t s);
 
+// Profiling
+void __kernl_profile_enter(const char* func_name);
+void __kernl_profile_exit(const char* func_name);
+void __kernl_profile_report(void);
+
 #endif

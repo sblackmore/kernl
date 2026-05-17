@@ -11,6 +11,9 @@ pub mod modules;
 pub mod driver;
 pub mod repl;
 pub mod incremental;
+pub mod proof;
+pub mod profiler;
+pub mod debugger;
 
 use lexer::Lexer;
 use parser::Parser;

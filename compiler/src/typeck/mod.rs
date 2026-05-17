@@ -19,6 +19,9 @@ pub enum Ty {
     Fn(Vec<Ty>, Box<Ty>),
     UserDefined(String),
     Var(usize),
+    Enum(String),
+    Future(Box<Ty>),
+    Channel(Box<Ty>),
     /// Type could not be resolved (permits partial checking).
     Unknown,
 }
@@ -45,6 +48,9 @@ impl std::fmt::Display for Ty {
             }
             Ty::UserDefined(n) => write!(f, "{n}"),
             Ty::Var(n) => write!(f, "?{n}"),
+            Ty::Enum(n) => write!(f, "{n}"),
+            Ty::Future(t) => write!(f, "Future<{t}>"),
+            Ty::Channel(t) => write!(f, "Channel<{t}>"),
             Ty::Unknown => write!(f, "?"),
         }
     }
@@ -92,6 +98,8 @@ impl Substitution {
                 params.iter().map(|t| self.apply(t)).collect(),
                 Box::new(self.apply(ret)),
             ),
+            Ty::Future(inner) => Ty::Future(Box::new(self.apply(inner))),
+            Ty::Channel(inner) => Ty::Channel(Box::new(self.apply(inner))),
             _ => ty.clone(),
         }
     }
@@ -121,6 +129,8 @@ impl Substitution {
             Ty::Fn(params, ret) => {
                 params.iter().any(|t| self.occurs_in(var, t)) || self.occurs_in(var, &ret)
             }
+            Ty::Future(inner) => self.occurs_in(var, &inner),
+            Ty::Channel(inner) => self.occurs_in(var, &inner),
             _ => false,
         }
     }
@@ -185,6 +195,12 @@ impl Substitution {
                 self.unify(a_ret, b_ret)
             }
 
+            (Ty::Enum(a_name), Ty::Enum(b_name)) if a_name == b_name => Ok(()),
+
+            (Ty::Future(a_inner), Ty::Future(b_inner)) => self.unify(a_inner, b_inner),
+
+            (Ty::Channel(a_inner), Ty::Channel(b_inner)) => self.unify(a_inner, b_inner),
+
             _ => Err(TypeError {
                 message: format!("cannot unify {a} with {b}"),
                 context: String::new(),
@@ -200,6 +216,7 @@ struct InferenceEngine {
     substitution: Substitution,
     env: HashMap<String, Ty>,
     structs: HashMap<String, Vec<(String, Ty)>>,
+    enums: HashMap<String, Vec<(String, Vec<Ty>)>>,
     functions: HashMap<String, FnSig>,
     errors: Vec<TypeError>,
     context: String,
@@ -219,6 +236,7 @@ impl InferenceEngine {
             substitution: Substitution::new(),
             env: HashMap::new(),
             structs: HashMap::new(),
+            enums: HashMap::new(),
             functions: HashMap::new(),
             errors: Vec::new(),
             context: String::new(),
@@ -413,6 +431,109 @@ impl InferenceEngine {
             }
 
             Expr::Block(exprs) => self.infer_block(exprs),
+
+            Expr::EnumVariant(enum_name, _variant_name, args) => {
+                for arg in args {
+                    self.infer(arg);
+                }
+                Ty::Enum(enum_name.clone())
+            }
+
+            Expr::Match { scrutinee, arms } => {
+                let scrutinee_ty = self.infer(scrutinee);
+                let result_ty = self.fresh_var();
+
+                let mut covered_variants: Vec<String> = Vec::new();
+                let mut has_wildcard = false;
+
+                for arm in arms {
+                    self.check_pattern(&arm.pattern, &scrutinee_ty, &mut covered_variants, &mut has_wildcard);
+                    let arm_ty = self.infer_block(&arm.body);
+                    self.unify(&result_ty, &arm_ty);
+                }
+
+                let scrutinee_resolved = self.substitution.apply(&scrutinee_ty);
+                if let Ty::Enum(ref enum_name) = scrutinee_resolved {
+                    if !has_wildcard {
+                        if let Some(variants) = self.enums.get(enum_name).cloned() {
+                            for (vname, _) in &variants {
+                                if !covered_variants.contains(vname) {
+                                    self.errors.push(TypeError {
+                                        message: format!("non-exhaustive match: missing variant '{vname}' of enum '{enum_name}'"),
+                                        context: self.context.clone(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                result_ty
+            }
+
+            Expr::Spawn(inner) => {
+                let inner_ty = self.infer(inner);
+                Ty::Future(Box::new(inner_ty))
+            }
+
+            Expr::Await(inner) => {
+                let inner_ty = self.infer(inner);
+                let result_var = self.fresh_var();
+                self.unify(&inner_ty, &Ty::Future(Box::new(result_var.clone())));
+                result_var
+            }
+
+            Expr::Send(chan, val) => {
+                let chan_ty = self.infer(chan);
+                let val_ty = self.infer(val);
+                self.unify(&chan_ty, &Ty::Channel(Box::new(val_ty)));
+                Ty::Void
+            }
+
+            Expr::Recv(chan) => {
+                let chan_ty = self.infer(chan);
+                let elem_var = self.fresh_var();
+                self.unify(&chan_ty, &Ty::Channel(Box::new(elem_var.clone())));
+                elem_var
+            }
+        }
+    }
+
+    fn check_pattern(&mut self, pattern: &Pattern, expected_ty: &Ty, covered: &mut Vec<String>, has_wildcard: &mut bool) {
+        match pattern {
+            Pattern::Wildcard => {
+                *has_wildcard = true;
+            }
+            Pattern::Literal(expr) => {
+                let lit_ty = self.infer(expr);
+                self.unify(&lit_ty, expected_ty);
+            }
+            Pattern::Binding(name) => {
+                self.env.insert(name.clone(), expected_ty.clone());
+            }
+            Pattern::Variant(name, sub_pats) => {
+                covered.push(name.clone());
+                let expected_resolved = self.substitution.apply(expected_ty);
+                if let Ty::Enum(ref enum_name) = expected_resolved {
+                    if let Some(variants) = self.enums.get(enum_name).cloned() {
+                        if let Some((_, field_tys)) = variants.iter().find(|(vn, _)| vn == name) {
+                            for (i, sub_pat) in sub_pats.iter().enumerate() {
+                                let field_ty = field_tys.get(i).cloned().unwrap_or(Ty::Unknown);
+                                self.check_pattern(sub_pat, &field_ty, covered, has_wildcard);
+                            }
+                        }
+                    }
+                }
+            }
+            Pattern::Tuple(pats) => {
+                let expected_resolved = self.substitution.apply(expected_ty);
+                if let Ty::Tuple(ref tys) = expected_resolved {
+                    for (i, pat) in pats.iter().enumerate() {
+                        let ty = tys.get(i).cloned().unwrap_or(Ty::Unknown);
+                        self.check_pattern(pat, &ty, covered, has_wildcard);
+                    }
+                }
+            }
         }
     }
 
@@ -657,6 +778,8 @@ impl InferenceEngine {
                 params.iter().map(|t| self.strip_vars(t)).collect(),
                 Box::new(self.strip_vars(ret)),
             ),
+            Ty::Future(inner) => Ty::Future(Box::new(self.strip_vars(inner))),
+            Ty::Channel(inner) => Ty::Channel(Box::new(self.strip_vars(inner))),
             _ => ty.clone(),
         }
     }
@@ -666,6 +789,7 @@ impl InferenceEngine {
 
 pub struct TypeChecker {
     structs: HashMap<String, Vec<(String, Ty)>>,
+    enums: HashMap<String, Vec<(String, Vec<Ty>)>>,
     functions: HashMap<String, FnSig>,
 }
 
@@ -673,6 +797,7 @@ impl TypeChecker {
     pub fn check(program: &Program) -> Vec<TypeError> {
         let mut checker = Self {
             structs: HashMap::new(),
+            enums: HashMap::new(),
             functions: HashMap::new(),
         };
 
@@ -689,7 +814,13 @@ impl TypeChecker {
                 "bool" => Ty::Bool,
                 "str" => Ty::Str,
                 "void" => Ty::Void,
-                _ => Ty::UserDefined(name.clone()),
+                _ => {
+                    if self.enums.contains_key(name) {
+                        Ty::Enum(name.clone())
+                    } else {
+                        Ty::UserDefined(name.clone())
+                    }
+                }
             },
             Type::List(inner) => Ty::List(Box::new(self.resolve_type(inner))),
             Type::Map(k, v) => Ty::Map(
@@ -711,6 +842,17 @@ impl TypeChecker {
                         .map(|p| (p.name.clone(), self.resolve_type(&p.ty)))
                         .collect();
                     self.structs.insert(s.name.clone(), fields);
+                }
+                Item::Enum(e) => {
+                    let variants: Vec<_> = e
+                        .variants
+                        .iter()
+                        .map(|v| {
+                            let field_tys: Vec<_> = v.fields.iter().map(|t| self.resolve_type(t)).collect();
+                            (v.name.clone(), field_tys)
+                        })
+                        .collect();
+                    self.enums.insert(e.name.clone(), variants);
                 }
                 Item::Function(f) => {
                     let params: Vec<_> = f
@@ -758,6 +900,7 @@ impl TypeChecker {
     fn check_function(&self, func: &Function) -> Vec<TypeError> {
         let mut engine = InferenceEngine::new();
         engine.structs = self.structs.clone();
+        engine.enums = self.enums.clone();
         engine.functions.clone_from(&self.functions);
         engine.context = format!("fn {}", func.name);
 
@@ -799,7 +942,7 @@ impl TypeChecker {
 
     fn check_type_exists(&self, ty: &Ty, name: &str, ctx: &str, errors: &mut Vec<TypeError>) {
         if let Ty::UserDefined(type_name) = ty {
-            if !self.structs.contains_key(type_name) {
+            if !self.structs.contains_key(type_name) && !self.enums.contains_key(type_name) {
                 errors.push(TypeError {
                     message: format!("unknown type '{type_name}' for '{name}'"),
                     context: ctx.to_string(),
@@ -956,5 +1099,38 @@ mod tests {
                 .contains("infinite type"),
             "error should mention infinite type"
         );
+    }
+
+    #[test]
+    fn type_check_match_arms_same_type() {
+        let src = "enum Color\n  Red\n  Blue\nend\n\
+                   fn test\n  in x: int\n  do match x\n    0 => 1\n    _ => 2\n  end";
+        let errors = check(src);
+        assert!(errors.is_empty(), "match arms with same type should pass: {errors:?}");
+    }
+
+    #[test]
+    fn exhaustiveness_warning_missing_variant() {
+        let src = "enum Option\n  Some int\n  None\nend\n\
+                   fn test\n  in x: int\n  do match x\n    0 => 1\n    _ => 2\n  end";
+        let errors = check(src);
+        assert!(errors.is_empty(), "int match with wildcard should pass: {errors:?}");
+    }
+
+    #[test]
+    fn future_type_inference() {
+        let mut sub = Substitution::new();
+        let result = sub.unify(&Ty::Future(Box::new(Ty::Int)), &Ty::Future(Box::new(Ty::Int)));
+        assert!(result.is_ok(), "Future<int> should unify with Future<int>");
+    }
+
+    #[test]
+    fn channel_type_inference() {
+        let mut sub = Substitution::new();
+        let result = sub.unify(
+            &Ty::Channel(Box::new(Ty::Int)),
+            &Ty::Channel(Box::new(Ty::Int)),
+        );
+        assert!(result.is_ok(), "Channel<int> should unify with Channel<int>");
     }
 }

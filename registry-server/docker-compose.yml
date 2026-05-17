@@ -1,0 +1,16 @@
+# Hosted registry — persistent volume and published port.
+# Build from this directory: docker compose up --build
+services:
+  registry:
+    build: .
+    ports:
+      - "9955:9955"
+    environment:
+      KERNL_REGISTRY_PORT: "9955"
+      KERNL_REGISTRY_DATA: /data/registry
+    volumes:
+      - kernl-registry-data:/data/registry
+    restart: unless-stopped
+
+volumes:
+  kernl-registry-data:
