@@ -6,7 +6,7 @@
 
 ---
 
-This is the main source code repository for kernl. It contains the compiler (`kernlc`), the language specification, benchmark suite, and documentation.
+This is the main source code repository for kernl. It contains the compiler drivers **`kernlc`** (full CLI) and **`kernl`** (script runner), the language specification, benchmark suite, and documentation.
 
 ## Why kernl?
 
@@ -26,12 +26,20 @@ kernl eliminates the noise.
 
 ## Quick start
 
-**Requirements:** [Rust toolchain](https://rustup.rs/) (1.80+)
+**One-liner (Rust installed automatically if needed):**
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://kernl-lang.org/install.sh | sh
+```
+
+Then ensure `~/.local/bin` is on your `PATH` and run `kernl --version`.
+
+**From source:** [Rust toolchain](https://rustup.rs/) (1.80+)
 
 ```bash
 git clone https://github.com/kernl-lang/kernl.git
 cd kernl/compiler
-cargo build
+cargo build --bins
 ```
 
 Write your first program (`hello.knl`):
@@ -43,14 +51,18 @@ fn add_one
   do add x 1
 ```
 
-Compile it:
+Run or compile from `kernl/compiler`:
 
 ```bash
-cargo run -- hello.knl --target llvm      # emit LLVM IR
-cargo run -- hello.knl --target wasm      # emit WebAssembly Text
-cargo run -- hello.knl --target wasm-bin  # emit binary .wasm file
-cargo run -- hello.knl --target debug     # dump AST
+./target/debug/kernl hello.knl              # interpret (--run implied); pipe stdin for main(str)
+./target/debug/kernlc hello.knl --run       # explicit interpreter
+cargo run --bin kernlc -- hello.knl --target llvm        # emit LLVM IR
+cargo run --bin kernlc -- hello.knl --target wasm        # WebAssembly Text
+cargo run --bin kernlc -- hello.knl --target wasm-bin    # binary .wasm
+cargo run --bin kernlc -- hello.knl --target debug       # dump AST (kernlc default without --run)
 ```
+
+After `cargo build --bins`, **`kernl`** is the short path for scripts; **`kernlc`** keeps the full compiler CLI (`--compile` on **`kernl`** switches back to emit mode).
 
 See the full [Getting Started guide](docs/getting-started.md) for a walkthrough of the language.
 

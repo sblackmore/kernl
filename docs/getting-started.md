@@ -23,6 +23,12 @@ kernlc hello.knl --target llvm    # emit LLVM IR
 kernlc hello.knl --target wasm    # emit WebAssembly
 ```
 
+To **run** a program with a **`main`** entrypoint from the compiler build directory, use the **`kernl`** driver (implies **`--run`**; pipe stdin when **`main`** takes one **`str`**):
+
+```bash
+./target/debug/kernl my_program.knl
+```
+
 ## Anatomy of a function
 
 Every kernl function follows the same structure:

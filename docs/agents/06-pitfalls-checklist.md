@@ -28,16 +28,17 @@ Use this as a quick verification pass.
 ## Host integration
 
 - [ ] If **`main`** receives **`stdin`**, document protocol (newlines matter).
-- [ ] Remember **`kernlc --invoke-stdin`** trims **leading/trailing** whitespace of the **whole** stdin buffer (`main.rs` **`trim()`**).
+- [ ] Remember piped stdin for **`main(str)`** is trimmed **leading/trailing** on the **whole** buffer (`cli.rs` / **`main_call_args`** **`trim()`**). Under **`kernl`**, piping implies **`--invoke-stdin`** unless **`--no-stdin`**.
 
 ## Verification command
 
 ```bash
-cargo run --manifest-path compiler/Cargo.toml -- path/to/file.knl --run
+cargo run --manifest-path compiler/Cargo.toml --bin kernl -- path/to/file.knl
 ```
 
-With stdin:
+With stdin (either form):
 
 ```bash
+printf '...\n' | cargo run --manifest-path compiler/Cargo.toml --bin kernl -- path/to/file.knl
 printf '...\n' | cargo run --manifest-path compiler/Cargo.toml -- path/to/file.knl --invoke-stdin --run
 ```

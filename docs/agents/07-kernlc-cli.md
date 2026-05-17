@@ -1,30 +1,46 @@
-# `kernlc` CLI (agents)
+# `kernlc` / `kernl` CLI (agents)
 
-## Common invocation
+## Script runner (`kernl`)
+
+After `cargo build --bins`, use the **`kernl`** binary for minimal friction:
 
 ```bash
-cargo run --manifest-path /path/to/kernl/compiler/Cargo.toml -- program.knl --run
+printf '...\n' | ./kernl program.knl
 ```
 
-Release binary (after `cargo build --release`):
+- Implies **`--run`** (no need to pass it).
+- If **`main`** has exactly one **`str`** parameter and stdin is **piped** (not a TTY), stdin is bound automatically (same as **`kernlc --invoke-stdin --run`**). Use **`kernl … --no-stdin`** to force an empty string.
+
+Full compiler / codegen paths stay on **`kernlc`**, or **`kernl program.knl --compile …`**.
+
+## Common `kernlc` invocation
 
 ```bash
-./kernlc program.knl --run
+cargo run --manifest-path /path/to/kernl/compiler/Cargo.toml --bin kernlc -- program.knl --run
+```
+
+Release binaries (after `cargo build --release`):
+
+```bash
+./kernl program.knl           # script mode
+./kernlc program.knl --run    # explicit
 ```
 
 ## Flags relevant to agents
 
 | Flag | Meaning |
 |------|---------|
+| **`kernl` binary** | Implicit **`--run`**; optional auto-stdin binding when piping (see above). |
+| **`--compile`** | With **`kernl`**: disable implicit run; behave like **`kernlc`** for emit targets. |
 | **`--run`** | Interpret with **`executor`** (strict mode path). |
-| **`--invoke-stdin`** | With **`--run`**: read **all stdin** into **`main`**’s **single `str`** parameter (must be exactly one **`str`** param). |
+| **`--invoke-stdin`** | With **`--run`**: read **all stdin** into **`main`**’s **single `str`** parameter (must be exactly one **`str`** param). Redundant when piping under **`kernl`** unless **`--no-stdin`**. |
 | **`--resolver-endpoint`**, **`--resolver-model`** | Fluid HTTP resolver (OpenAI-compatible chat). |
 | **`--verify`** | SMT / verification path — separate workflow. |
-| Default (no codegen flags) | Often AST/debug output depending on driver — check **`main.rs`** help. |
+| Default (**`kernlc`**, no codegen flags) | AST/debug output — see **`kernlc --help`**. |
 
 ## Entrypoint
 
-- **`main`** is preferred if present; else first function — see **`run_program`** in `compiler/src/main.rs`.
+- **`main`** is preferred if present; else first function — see **`run_program`** in `compiler/src/cli.rs`.
 
 ## Debugging failures
 

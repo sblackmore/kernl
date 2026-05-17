@@ -5,6 +5,10 @@ edition = "2024"
 description = "The kernl compiler — an AI-native programming language"
 license = "MIT"
 
+[[bin]]
+name = "kernl"
+path = "src/bin/kernl.rs"
+
 [dependencies]
 wasm-encoder = "0.248"
 ureq = { version = "3", features = ["json"] }
