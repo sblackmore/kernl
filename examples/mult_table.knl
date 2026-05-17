@@ -1,0 +1,145 @@
+# Multiplication table: stdin line 1 = low, line 2 = high (inclusive ints).
+# Example: printf '1\n3\n' | kernl examples/mult_table.knl
+#
+# Columns are left-padded so values align (handles 1-digit vs 2-digit products).
+
+fn repeat_space
+  in n: int acc: str
+  out s: str
+  do if lte n 0
+       acc
+     else
+       let next = sub n 1
+       let acc2 = concat acc " "
+       repeat_space next acc2
+     end
+
+fn pad_left
+  in s: str width: int
+  out t: str
+  do if true
+       let n = len s
+       let gap = sub width n
+       if lte gap 0
+         s
+       else
+         let pads = repeat_space gap ""
+         concat pads s
+       end
+     end
+
+fn append_spaced
+  in acc: str cell: str
+  out s: str
+  do if true
+       let gap = concat acc " "
+       concat gap cell
+     end
+
+fn join_cells_padded
+  in xs: [int] acc: str cell_w: int
+  out line: str
+  do if true
+       let nx = len xs
+       if eq nx 0
+         acc
+       else
+         if true
+           let h = head xs
+           let t = tail xs
+           let sx = show h
+           let cell = pad_left sx cell_w
+           let next_acc = if eq acc ""
+                           cell
+                         else
+                           append_spaced acc cell
+                         end
+           join_cells_padded t next_acc cell_w
+         end
+       end
+     end
+
+fn snoc_int
+  in xs: [int] x: int
+  out ys: [int]
+  do if true
+       let n = len xs
+       if eq n 0
+         if true
+           let e = range 1 1
+           cons x e
+         end
+       else
+         if true
+           let h = head xs
+           let rest = tail xs
+           let tail_done = snoc_int rest x
+           cons h tail_done
+         end
+       end
+     end
+
+fn map_mul_row
+  in r: int cols: [int] acc: [int]
+  out cells: [int]
+  do if true
+       let n = len cols
+       if eq n 0
+         acc
+       else
+         if true
+           let c = head cols
+           let t = tail cols
+           let v = mul r c
+           let acc2 = snoc_int acc v
+           map_mul_row r t acc2
+         end
+       end
+     end
+
+fn for_each_row
+  in rows: [int] cols: [int] w_label: int w_cell: int
+  do if true
+       let n = len rows
+       if eq n 0
+         noop 0
+       else
+         if true
+           let empty_cells = range 1 1
+           let r = head rows
+           let rest_rows = tail rows
+           let cells = map_mul_row r cols empty_cells
+           let body = join_cells_padded cells "" w_cell
+           let rs = show r
+           let rs_pad = pad_left rs w_label
+           let row_gap = concat rs_pad " "
+           let row_line = concat row_gap body
+           print row_line
+           for_each_row rest_rows cols w_label w_cell
+         end
+       end
+     end
+
+fn main
+  in stdin: str
+  do if true
+       let lines = split stdin "\n"
+       let lo_s = head lines
+       let rest = tail lines
+       let hi_s = head rest
+       let lo = parse_int lo_s
+       let hi = parse_int hi_s
+       let hi_excl = add hi 1
+       let cols = range lo hi_excl
+       let hi_sh = show hi
+       let w_label = len hi_sh
+       let max_cell = mul hi hi
+       let mc_sh = show max_cell
+       let w_cell = len mc_sh
+       let blank_corner = repeat_space w_label ""
+       let hdr_cells = join_cells_padded cols "" w_cell
+       let hdr_gap = concat blank_corner " "
+       let hdr_line = concat hdr_gap hdr_cells
+       print hdr_line
+       for_each_row cols cols w_label w_cell
+     end
