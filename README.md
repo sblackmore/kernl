@@ -2,7 +2,7 @@
 
 ### The AI-native programming language: designed for LLMs, not humans.
 
-[Getting Started](docs/getting-started.md) | [Language Spec](spec/LANGUAGE.md) | [Examples](docs/examples.md) | [Architecture](docs/architecture.md) | [Contributing](CONTRIBUTING.md)
+[Website](https://kernl-lang.org/) | [Getting Started](docs/getting-started.md) | [Language Spec](spec/LANGUAGE.md) | [Examples](docs/examples.md) | [Architecture](docs/architecture.md) | [Contributing](CONTRIBUTING.md)
 
 ---
 
@@ -10,7 +10,7 @@ This is the main source code repository for kernl. It contains the compiler (`ke
 
 ## Why kernl?
 
-Programming languages are designed for humans. Python optimizes for readability. Rust optimizes for safety. C optimizes for hardware control. **None of them optimize for LLM generation** — and now that's the bottleneck.
+Every programming language in existence was designed for humans. Python optimizes for readability. Rust optimizes for safety. C optimizes for hardware control. **None of them optimize for LLM generation** — and now that's the bottleneck.
 
 When an AI agent writes code, it generates tokens. Every unnecessary token is:
 - **Cost** — you pay per token
